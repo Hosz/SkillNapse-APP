@@ -9,7 +9,6 @@ import {
   Loader2,
 } from 'lucide-react';
 import type { Topico, Questao } from '../../types';
-import { mockQuestoes } from '../../data/mockData';
 import { questaoService } from '../../services';
 
 interface QuestionsTabProps {
@@ -17,18 +16,14 @@ interface QuestionsTabProps {
 }
 
 export const QuestionsTab: React.FC<QuestionsTabProps> = ({ topic }) => {
-  const [questions, setQuestions] = useState<Questao[]>(() => {
-    return mockQuestoes[topic.id] || mockQuestoes['top-01'] || [];
-  });
+  const [questions, setQuestions] = useState<Questao[]>([]);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     questaoService.listarPorTopico(topic.id).then((res) => {
-      if (res && res.length > 0) {
-        setQuestions(res);
-      }
+      setQuestions(res || []);
     });
   }, [topic.id]);
 
@@ -129,16 +124,25 @@ export const QuestionsTab: React.FC<QuestionsTabProps> = ({ topic }) => {
 
       {/* Questions List */}
       <div className="space-y-4">
-        {questions.map((q, idx) => {
-          const answeredOptionId = selectedAnswers[q.id];
-          const hasAnswered = !!answeredOptionId;
-          const isExplOpen = showExplanation[q.id];
+        {questions.length === 0 ? (
+          <div className="p-8 text-center rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-2">
+            <HelpCircle className="w-8 h-8 text-zinc-500 mx-auto opacity-50" />
+            <div className="text-xs font-medium text-zinc-300">Nenhuma questão cadastrada para este tópico</div>
+            <p className="text-[11px] text-zinc-500">
+              Clique em &quot;Gerar Questão IA&quot; acima para gerar itens inéditos direcionados ao edital.
+            </p>
+          </div>
+        ) : (
+          questions.map((q, idx) => {
+            const answeredOptionId = selectedAnswers[q.id];
+            const hasAnswered = !!answeredOptionId;
+            const isExplOpen = showExplanation[q.id];
 
-          return (
-            <div
-              key={q.id}
-              className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 space-y-3"
-            >
+            return (
+              <div
+                key={q.id}
+                className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 space-y-3"
+              >
               {/* Question metadata badge */}
               <div className="flex items-center justify-between text-[11px]">
                 <span className="font-mono text-zinc-400">Questão #{idx + 1}</span>
@@ -234,7 +238,7 @@ export const QuestionsTab: React.FC<QuestionsTabProps> = ({ topic }) => {
               )}
             </div>
           );
-        })}
+        }))}
       </div>
     </div>
   );

@@ -11,13 +11,12 @@ import {
   X,
 } from 'lucide-react';
 import type { BlocoCronograma, DiaSemana, TipoBloco } from '../../types';
-import { mockCronograma } from '../../data/mockData';
 import { cronogramaService } from '../../services';
 
 export const ScheduleView: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<DiaSemana>('SEGUNDA');
-  const [cronograma, setCronograma] = useState<BlocoCronograma[]>(mockCronograma);
-  const [selectedBloco, setSelectedBloco] = useState<BlocoCronograma | null>(mockCronograma[0]);
+  const [cronograma, setCronograma] = useState<BlocoCronograma[]>([]);
+  const [selectedBloco, setSelectedBloco] = useState<BlocoCronograma | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // Form states for adding a new block

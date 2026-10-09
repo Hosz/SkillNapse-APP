@@ -1,25 +1,31 @@
 import { ApiService } from './api';
 import type { Flashcard, Sm2Rating } from '../types';
-import { mockFlashcards } from '../data/mockData';
 
 export const flashcardService = {
   async listarPorTopico(topicoId: string): Promise<Flashcard[]> {
     try {
-      const data = await ApiService.request<Flashcard[]>(`/flashcards?topicoId=${topicoId}`);
-      if (Array.isArray(data) && data.length > 0) {
+      const data = await ApiService.request<{ content?: Flashcard[] } | Flashcard[]>(`/flashcards/due?topicoId=${topicoId}`);
+      if (Array.isArray(data)) {
         return data;
       }
-      return mockFlashcards[topicoId] || mockFlashcards['top-01'] || [];
+      return data?.content || [];
     } catch {
-      return mockFlashcards[topicoId] || mockFlashcards['top-01'] || [];
+      return [];
     }
   },
 
   async revisarCard(cardId: string, rating: Sm2Rating): Promise<boolean> {
     try {
+      const qualidadeMap: Record<Sm2Rating, number> = {
+        ERRO: 0,
+        DIFICIL: 2,
+        BOM: 4,
+        FACIL: 5,
+      };
+
       await ApiService.request(`/flashcards/${cardId}/revisar`, {
         method: 'POST',
-        body: JSON.stringify({ rating }),
+        body: JSON.stringify({ qualidade: qualidadeMap[rating] ?? 4 }),
       });
       return true;
     } catch {

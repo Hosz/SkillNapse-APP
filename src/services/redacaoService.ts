@@ -1,6 +1,5 @@
 import { ApiService } from './api';
 import type { TemaRedacao } from '../types';
-import { mockTemasRedacao } from '../data/mockData';
 
 export interface SubmissaoTextoPayload {
   temaRedacaoId: string;
@@ -10,10 +9,13 @@ export interface SubmissaoTextoPayload {
 export const redacaoService = {
   async listarTemas(): Promise<TemaRedacao[]> {
     try {
-      const data = await ApiService.request<TemaRedacao[]>('/redacoes/temas');
-      return Array.isArray(data) && data.length > 0 ? data : mockTemasRedacao;
+      const data = await ApiService.request<{ content?: TemaRedacao[] } | TemaRedacao[]>('/redacoes/temas');
+      if (Array.isArray(data)) {
+        return data;
+      }
+      return data?.content || [];
     } catch {
-      return mockTemasRedacao;
+      return [];
     }
   },
 

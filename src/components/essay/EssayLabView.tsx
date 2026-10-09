@@ -8,7 +8,6 @@ import {
   Loader2,
   Award,
 } from 'lucide-react';
-import { mockTemasRedacao } from '../../data/mockData';
 import { redacaoService } from '../../services';
 import type { TemaRedacao } from '../../types';
 
@@ -28,8 +27,9 @@ interface EvaluationResult {
 }
 
 export const EssayLabView: React.FC = () => {
-  const [temas, setTemas] = useState<TemaRedacao[]>(mockTemasRedacao);
-  const [selectedTema, setSelectedTema] = useState(mockTemasRedacao[0]);
+  const [temas, setTemas] = useState<TemaRedacao[]>([]);
+  const [selectedTema, setSelectedTema] = useState<TemaRedacao | null>(null);
+  const [isGeneratingTema, setIsGeneratingTema] = useState(false);
   const [submissionMode, setSubmissionMode] = useState<'TEXT' | 'OCR'>('TEXT');
   const [essayText, setEssayText] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -38,18 +38,46 @@ export const EssayLabView: React.FC = () => {
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
 
   useEffect(() => {
-    redacaoService.listarTemas().then((res) => {
-      if (res && res.length > 0) {
-        setTemas(res);
-        setSelectedTema(res[0]);
-      }
-    });
+    let isMounted = true;
+    redacaoService
+      .listarTemas()
+      .then((res) => {
+        if (!isMounted) return;
+        if (res && res.length > 0) {
+          setTemas(res);
+          setSelectedTema(res[0]);
+        } else {
+          setTemas([]);
+          setSelectedTema(null);
+        }
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setTemas([]);
+        setSelectedTema(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  const handleGerarTema = async () => {
+    const eixo = prompt('Eixo temático ou assunto desejado (opcional):', 'Direito Constitucional e Políticas Públicas');
+    setIsGeneratingTema(true);
+    const novoTema = await redacaoService.gerarTemaAi(eixo || undefined);
+    if (novoTema) {
+      setTemas((prev) => [novoTema, ...prev]);
+      setSelectedTema(novoTema);
+    }
+    setIsGeneratingTema(false);
+  };
 
   const characterCount = essayText.length;
   const isCharacterCountValid = characterCount >= 300 && characterCount <= 5000;
 
   const handleSubmit = async () => {
+    if (!selectedTema) return;
     setIsEvaluating(true);
     let result: EvaluationResult | null = null;
 
@@ -107,20 +135,38 @@ export const EssayLabView: React.FC = () => {
                 Laboratório de Redação Inteligente
               </div>
               <div className="flex items-center gap-2">
-                <select
-                  value={selectedTema.id}
-                  onChange={(e) => {
-                    const found = mockTemasRedacao.find((t) => t.id === e.target.value);
-                    if (found) setSelectedTema(found);
-                  }}
-                  className="bg-zinc-900 border border-zinc-800 text-sm font-bold text-zinc-100 rounded-xl px-2.5 py-1 focus:outline-none"
+                {selectedTema ? (
+                  <select
+                    value={selectedTema.id}
+                    onChange={(e) => {
+                      const found = temas.find((t) => t.id === e.target.value);
+                      if (found) setSelectedTema(found);
+                    }}
+                    className="bg-zinc-900 border border-zinc-800 text-sm font-bold text-zinc-100 rounded-xl px-2.5 py-1 focus:outline-none"
+                  >
+                    {temas.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.titulo}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-xs text-zinc-400">Nenhum tema cadastrado</span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleGerarTema}
+                  disabled={isGeneratingTema}
+                  className="px-2.5 py-1 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  title="Gerar novo tema com IA"
                 >
-                  {temas.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.titulo}
-                    </option>
-                  ))}
-                </select>
+                  {isGeneratingTema ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                  )}
+                  <span>{isGeneratingTema ? 'Gerando...' : 'Gerar Tema com IA'}</span>
+                </button>
               </div>
             </div>
 
@@ -150,12 +196,18 @@ export const EssayLabView: React.FC = () => {
           </div>
 
           {/* Theme description & motivators */}
-          <div className="p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/60 text-xs text-zinc-400 leading-relaxed font-sans">
-            <span className="font-semibold text-zinc-300 block mb-0.5">
-              Eixo: {selectedTema.eixoTematico}
-            </span>
-            {selectedTema.descricao}
-          </div>
+          {selectedTema ? (
+            <div className="p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/60 text-xs text-zinc-400 leading-relaxed font-sans">
+              <span className="font-semibold text-zinc-300 block mb-0.5">
+                Eixo: {selectedTema.eixoTematico}
+              </span>
+              {selectedTema.descricao}
+            </div>
+          ) : (
+            <div className="p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/50 text-xs text-zinc-500">
+              Nenhuma proposta selecionada. Clique em &ldquo;Gerar Tema com IA&rdquo; para criar uma nova proposta de redação discursiva.
+            </div>
+          )}
         </div>
 
         {/* Input Area */}
@@ -250,7 +302,12 @@ export const EssayLabView: React.FC = () => {
           <div className="pt-4 border-t border-zinc-900 flex justify-end">
             <button
               onClick={handleSubmit}
-              disabled={isEvaluating}
+              disabled={
+                isEvaluating ||
+                !selectedTema ||
+                (submissionMode === 'TEXT' && !isCharacterCountValid) ||
+                (submissionMode === 'OCR' && !selectedPhoto)
+              }
               className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20"
             >
               {isEvaluating ? (

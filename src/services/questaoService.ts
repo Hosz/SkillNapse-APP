@@ -1,6 +1,5 @@
 import { ApiService } from './api';
 import type { Questao } from '../types';
-import { mockQuestoes } from '../data/mockData';
 
 export interface RespostaQuestaoPayload {
   alternativaEscolhidaId: string;
@@ -19,29 +18,17 @@ export const questaoService = {
   async listarPorTopico(topicoId: string): Promise<Questao[]> {
     try {
       const data = await ApiService.request<{ content: Questao[] }>(`/questoes?topicoId=${topicoId}`);
-      if (data?.content && data.content.length > 0) {
-        return data.content;
-      }
-      return mockQuestoes[topicoId] || mockQuestoes['top-01'] || [];
+      return data?.content || [];
     } catch {
-      return mockQuestoes[topicoId] || mockQuestoes['top-01'] || [];
+      return [];
     }
   },
 
   async responderQuestao(questaoId: string, payload: RespostaQuestaoPayload): Promise<RespostaQuestaoResponse> {
-    try {
-      return await ApiService.request<RespostaQuestaoResponse>(`/questoes/${questaoId}/responder`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    } catch {
-      // Local check
-      return {
-        acertou: true,
-        alternativaCorretaId: payload.alternativaEscolhidaId,
-        explicacaoGabarito: 'Gabarito validado com sucesso.',
-      };
-    }
+    return await ApiService.request<RespostaQuestaoResponse>(`/questoes/${questaoId}/responder`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   async gerarSimuladoAdaptativo(planoId: string, quantidade: number = 10): Promise<{ simuladoId: string; totalQuestoes: number } | null> {

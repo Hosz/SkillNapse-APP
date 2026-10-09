@@ -1,6 +1,5 @@
 import { ApiService } from './api';
 import type { BlocoCronograma, DiaSemana, TipoBloco } from '../types';
-import { mockCronograma } from '../data/mockData';
 
 export interface CriarBlocoTemplatePayload {
   diaSemana: DiaSemana;
@@ -51,7 +50,7 @@ export const cronogramaService = {
         return novo.id;
       }
     } catch {
-      // Mock fallback ID
+      // Fallback
     }
     return 'tpl-default';
   },
@@ -75,57 +74,41 @@ export const cronogramaService = {
             });
           });
         });
-        if (blocos.length > 0) {
-          return blocos;
-        }
+        return blocos;
       }
-      return mockCronograma;
+      return [];
     } catch {
-      return mockCronograma;
+      return [];
     }
   },
 
   async adicionarBloco(payload: CriarBlocoTemplatePayload): Promise<BlocoCronograma> {
-    try {
-      const templateId = await this.obterTemplateAtivoId();
-      const horaInicioNorm = payload.horaInicio.length === 5 ? `${payload.horaInicio}:00` : payload.horaInicio;
-      const horaFimNorm = payload.horaFim.length === 5 ? `${payload.horaFim}:00` : payload.horaFim;
+    const templateId = await this.obterTemplateAtivoId();
+    const horaInicioNorm = payload.horaInicio.length === 5 ? `${payload.horaInicio}:00` : payload.horaInicio;
+    const horaFimNorm = payload.horaFim.length === 5 ? `${payload.horaFim}:00` : payload.horaFim;
 
-      const res = await ApiService.request<{ id: string }>(`/cronogramas/templates/${templateId}/blocos`, {
-        method: 'POST',
-        body: JSON.stringify({
-          diaSemana: payload.diaSemana,
-          horaInicio: horaInicioNorm,
-          horaFim: horaFimNorm,
-          tipoBloco: payload.tipoBloco,
-          materiaId: payload.materiaId,
-          topicoId: payload.topicoId,
-        }),
-      });
-
-      return {
-        id: res?.id || `bloco-${Date.now()}`,
+    const res = await ApiService.request<{ id: string }>(`/cronogramas/templates/${templateId}/blocos`, {
+      method: 'POST',
+      body: JSON.stringify({
         diaSemana: payload.diaSemana,
-        horaInicio: payload.horaInicio.slice(0, 5),
-        horaFim: payload.horaFim.slice(0, 5),
+        horaInicio: horaInicioNorm,
+        horaFim: horaFimNorm,
         tipoBloco: payload.tipoBloco,
-        topicoTitulo: payload.topicoTitulo,
         materiaId: payload.materiaId,
         topicoId: payload.topicoId,
-      };
-    } catch {
-      // Offline fallback
-      return {
-        id: `bloco-${Date.now()}`,
-        diaSemana: payload.diaSemana,
-        horaInicio: payload.horaInicio.slice(0, 5),
-        horaFim: payload.horaFim.slice(0, 5),
-        tipoBloco: payload.tipoBloco,
-        topicoTitulo: payload.topicoTitulo,
-        materiaId: payload.materiaId,
-        topicoId: payload.topicoId,
-      };
-    }
+      }),
+    });
+
+    return {
+      id: res?.id || `bloco-${Date.now()}`,
+      diaSemana: payload.diaSemana,
+      horaInicio: payload.horaInicio.slice(0, 5),
+      horaFim: payload.horaFim.slice(0, 5),
+      tipoBloco: payload.tipoBloco,
+      topicoTitulo: payload.topicoTitulo,
+      materiaId: payload.materiaId,
+      topicoId: payload.topicoId,
+    };
   },
 
   async excluirBloco(blocoId: string): Promise<boolean> {
@@ -143,9 +126,9 @@ export const cronogramaService = {
   async obterCronogramaDoDia(dataIso: string): Promise<BlocoCronograma[]> {
     try {
       const res = await ApiService.request<BlocoCronograma[]>(`/cronogramas/diario/${dataIso}`);
-      return Array.isArray(res) ? res : mockCronograma;
+      return Array.isArray(res) ? res : [];
     } catch {
-      return mockCronograma;
+      return [];
     }
   },
 

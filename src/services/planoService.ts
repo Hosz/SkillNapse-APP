@@ -1,6 +1,5 @@
 import { ApiService } from './api';
 import type { PlanoEstudo, Materia, Topico } from '../types';
-import { mockPlano } from '../data/mockData';
 
 export interface CriarPlanoPayload {
   titulo: string;
@@ -49,7 +48,7 @@ export interface AtualizarProgressoPayload {
 
 export const planoService = {
   // --- PLANOS DE ESTUDO ---
-  async obterPlanoAtivo(planoId?: string): Promise<PlanoEstudo> {
+  async obterPlanoAtivo(planoId?: string): Promise<PlanoEstudo | null> {
     try {
       if (planoId) {
         return await ApiService.request<PlanoEstudo>(`/plano-estudo/${planoId}`);
@@ -58,37 +57,26 @@ export const planoService = {
       if (data && data.content && data.content.length > 0) {
         return data.content[0];
       }
-      return mockPlano;
+      return null;
     } catch {
-      return mockPlano;
+      return null;
     }
   },
 
   async listarPlanos(): Promise<PlanoEstudo[]> {
     try {
       const data = await ApiService.request<{ content: PlanoEstudo[] }>('/plano-estudo');
-      return data?.content || [mockPlano];
+      return data?.content || [];
     } catch {
-      return [mockPlano];
+      return [];
     }
   },
 
   async criarPlano(payload: CriarPlanoPayload): Promise<PlanoEstudo> {
-    try {
-      return await ApiService.request<PlanoEstudo>('/plano-estudo', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    } catch {
-      return {
-        ...mockPlano,
-        id: `plano-${Date.now()}`,
-        titulo: payload.titulo,
-        cargoAlvo: payload.cargoAlvo || '',
-        dataExame: payload.dataExame,
-        materias: [],
-      };
-    }
+    return await ApiService.request<PlanoEstudo>('/plano-estudo', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   async editarPlano(planoId: string, payload: EditarPlanoPayload): Promise<PlanoEstudo | null> {
@@ -115,21 +103,10 @@ export const planoService = {
 
   // --- MATÉRIAS ---
   async criarMateria(planoId: string, payload: CriarMateriaPayload): Promise<Materia> {
-    try {
-      return await ApiService.request<Materia>(`/materias/plano/${planoId}`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    } catch {
-      return {
-        id: `mat-${Date.now()}`,
-        planoId,
-        nome: payload.nome,
-        corHex: payload.corHex || '#3b82f6',
-        ordem: payload.ordem || 1,
-        topicos: [],
-      };
-    }
+    return await ApiService.request<Materia>(`/materias/plano/${planoId}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   async editarMateria(materiaId: string, payload: EditarMateriaPayload): Promise<Materia | null> {
@@ -156,22 +133,10 @@ export const planoService = {
 
   // --- TÓPICOS E SUBTÓPICOS ---
   async criarTopico(materiaId: string, payload: CriarTopicoPayload): Promise<Topico> {
-    try {
-      return await ApiService.request<Topico>(`/topicos/materia/${materiaId}`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    } catch {
-      return {
-        id: `top-${Date.now()}`,
-        materiaId,
-        titulo: payload.titulo,
-        peso: payload.peso || 5,
-        proficiencia: 'INICIANTE',
-        ordem: payload.ordem || 1,
-        subtopicos: [],
-      };
-    }
+    return await ApiService.request<Topico>(`/topicos/materia/${materiaId}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   async editarTopico(topicoId: string, payload: EditarTopicoPayload): Promise<Topico | null> {
