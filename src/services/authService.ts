@@ -33,6 +33,9 @@ export const authService = {
       });
       if (res?.accessToken) {
         ApiService.setToken(res.accessToken);
+        if (res.refreshToken) {
+          ApiService.setRefreshToken(res.refreshToken);
+        }
         localStorage.setItem('skillnapse_user', JSON.stringify({ email: payload.email }));
       }
       return res;
@@ -62,7 +65,6 @@ export const authService = {
   },
 
   logout() {
-    localStorage.removeItem('skillnapse_access_token');
-    localStorage.removeItem('skillnapse_user');
+    ApiService.clearTokens();
   },
 };

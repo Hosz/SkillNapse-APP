@@ -8,12 +8,77 @@ interface PomodoroTabProps {
 }
 
 export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComplete }) => {
-  const [initialMinutes, setInitialMinutes] = useState(25);
-  const [secondsLeft, setSecondsLeft] = useState(25 * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [sessionSecondsElapsed, setSessionSecondsElapsed] = useState(0);
+  const [initialMinutes, setInitialMinutes] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(`skillnapse_pomodoro_${topic.id}`);
+      if (saved) return JSON.parse(saved).initialMinutes || 25;
+    } catch (_err) {
+      void _err;
+    }
+    return 25;
+  });
+
+  const [secondsLeft, setSecondsLeft] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(`skillnapse_pomodoro_${topic.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const elapsed = parsed.isRunning ? Math.floor((Date.now() - parsed.timestamp) / 1000) : 0;
+        return Math.max(0, parsed.secondsLeft - elapsed);
+      }
+    } catch (_err) {
+      void _err;
+    }
+    return 25 * 60;
+  });
+
+  const [isRunning, setIsRunning] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(`skillnapse_pomodoro_${topic.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const elapsed = parsed.isRunning ? Math.floor((Date.now() - parsed.timestamp) / 1000) : 0;
+        return parsed.isRunning && parsed.secondsLeft - elapsed > 0;
+      }
+    } catch (_err) {
+      void _err;
+    }
+    return false;
+  });
+
+  const [sessionSecondsElapsed, setSessionSecondsElapsed] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(`skillnapse_pomodoro_${topic.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const elapsed = parsed.isRunning ? Math.floor((Date.now() - parsed.timestamp) / 1000) : 0;
+        return (parsed.sessionSecondsElapsed || 0) + elapsed;
+      }
+    } catch (_err) {
+      void _err;
+    }
+    return 0;
+  });
+
   const [mode, setMode] = useState<'FOCO' | 'PAUSA_CURTA' | 'PAUSA_LONGA'>('FOCO');
   const [justCompleted, setJustCompleted] = useState(false);
+
+  // Persist Pomodoro timer state to localStorage (Section 6.2 of FRONTEND_INTEGRATION_GUIDE.md)
+  useEffect(() => {
+    if (secondsLeft > 0 && (isRunning || sessionSecondsElapsed > 0)) {
+      localStorage.setItem(
+        `skillnapse_pomodoro_${topic.id}`,
+        JSON.stringify({
+          initialMinutes,
+          secondsLeft,
+          isRunning,
+          sessionSecondsElapsed,
+          mode,
+          timestamp: Date.now(),
+        })
+      );
+    }
+  }, [secondsLeft, isRunning, sessionSecondsElapsed, mode, initialMinutes, topic.id]);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -23,6 +88,7 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
           if (prev <= 1) {
             setIsRunning(false);
             setJustCompleted(true);
+            localStorage.removeItem(`skillnapse_pomodoro_${topic.id}`);
             return 0;
           }
           return prev - 1;
@@ -31,7 +97,7 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isRunning]);
+  }, [isRunning, topic.id]);
 
   const handleModeChange = (newMinutes: number, newMode: 'FOCO' | 'PAUSA_CURTA' | 'PAUSA_LONGA') => {
     setIsRunning(false);
@@ -39,11 +105,14 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
     setSecondsLeft(newMinutes * 60);
     setMode(newMode);
     setJustCompleted(false);
+    localStorage.removeItem(`skillnapse_pomodoro_${topic.id}`);
   };
 
   const handleReset = () => {
     setIsRunning(false);
     setSecondsLeft(initialMinutes * 60);
+    setSessionSecondsElapsed(0);
+    localStorage.removeItem(`skillnapse_pomodoro_${topic.id}`);
   };
 
   const handleFinishSession = () => {
@@ -51,10 +120,10 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
     if (sessionSecondsElapsed > 0) {
       onSessionComplete(sessionSecondsElapsed);
     } else {
-      // Minimum credited session
       onSessionComplete(initialMinutes * 60 - secondsLeft || 300);
     }
     setJustCompleted(true);
+    localStorage.removeItem(`skillnapse_pomodoro_${topic.id}`);
     setTimeout(() => setJustCompleted(false), 4000);
   };
 

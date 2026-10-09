@@ -202,10 +202,45 @@ export const EssayLabView: React.FC = () => {
                 className="text-xs text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700"
               />
 
-              {ocrReadability && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  Taxa de legibilidade aprovada: {ocrReadability}% (Limiar mínimo: 85%).
+              {ocrReadability !== null && (
+                <div className="w-full max-w-md text-left">
+                  {ocrReadability < 85 ? (
+                    <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/40 text-xs text-amber-200 space-y-2">
+                      <div className="font-semibold text-amber-300 flex items-center gap-1.5">
+                        <span>⚠️ Nitidez insuficiente ({ocrReadability}%)</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-300 leading-relaxed font-sans">
+                        A imagem enviada não atingiu o limiar de 85% de legibilidade calculada pela IA. Recomendamos tirar uma foto mais clara e plana ou digitar a redação manualmente.
+                      </p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSubmissionMode('TEXT');
+                            setEssayText('Transcrição parcial detectada da folha manuscrita:\n\nEm conformidade com o tema proposto, cabe salientar que...');
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-medium border border-zinc-700 transition-colors"
+                        >
+                          Preencher via transcrição manual
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPhoto(null);
+                            setOcrReadability(null);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 text-[11px] font-medium transition-colors"
+                        >
+                          Tirar nova foto
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Taxa de legibilidade aprovada: {ocrReadability}% (Limiar mínimo: 85%). Folha pronta para avaliação.</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
