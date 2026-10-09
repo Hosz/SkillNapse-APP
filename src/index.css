@@ -10,16 +10,100 @@
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: #3f3f46;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: #52525b;
+}
+
+/* Visible structural dividers (Engrossamento das divisões) */
+.border-thick {
+  border-width: 1.5px;
+}
+
+/* Light Theme Styling (Tema Branco) */
+html.theme-light,
+.theme-light body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.theme-light .bg-zinc-950,
+.theme-light .bg-zinc-950\/70,
+.theme-light .bg-zinc-950\/60,
+.theme-light .bg-zinc-950\/40 {
+  background-color: #f8fafc !important;
+}
+
+.theme-light .bg-zinc-900,
+.theme-light .bg-zinc-900\/80,
+.theme-light .bg-zinc-900\/70,
+.theme-light .bg-zinc-900\/60,
+.theme-light .bg-zinc-900\/40,
+.theme-light .bg-zinc-900\/30 {
+  background-color: #ffffff !important;
+}
+
+.theme-light .bg-zinc-800,
+.theme-light .bg-zinc-800\/90,
+.theme-light .bg-zinc-800\/80,
+.theme-light .bg-zinc-800\/60 {
+  background-color: #f1f5f9 !important;
+}
+
+.theme-light .border-zinc-900,
+.theme-light .border-zinc-900\/80,
+.theme-light .border-zinc-900\/90,
+.theme-light .border-zinc-800,
+.theme-light .border-zinc-800\/60,
+.theme-light .border-zinc-800\/80,
+.theme-light .border-zinc-700,
+.theme-light .border-zinc-700\/60,
+.theme-light .border-zinc-700\/80 {
+  border-color: #cbd5e1 !important;
+}
+
+.theme-light .text-zinc-100,
+.theme-light .text-zinc-200 {
+  color: #0f172a !important;
+}
+
+.theme-light .text-zinc-300 {
+  color: #1e293b !important;
+}
+
+.theme-light .text-zinc-400 {
+  color: #475569 !important;
+}
+
+.theme-light .text-zinc-500,
+.theme-light .text-zinc-600 {
+  color: #64748b !important;
+}
+
+.theme-light .hover\:bg-zinc-900:hover,
+.theme-light .hover\:bg-zinc-900\/80:hover,
+.theme-light .hover\:bg-zinc-900\/70:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.theme-light .hover\:bg-zinc-800:hover,
+.theme-light .hover\:bg-zinc-800\/80:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.theme-light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

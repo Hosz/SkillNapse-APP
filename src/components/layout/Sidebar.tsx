@@ -3,21 +3,23 @@ import {
   Network,
   Calendar,
   PenTool,
-  CheckSquare,
-  Layers,
+  Award,
   BarChart3,
   FileUp,
   Flame,
   Clock,
   Sparkles,
+  LogOut,
+  Sun,
+  Moon,
 } from 'lucide-react';
+import { useTheme } from '../../context/useTheme';
 
 export type NavView =
   | 'tree'
   | 'schedule'
+  | 'simulado'
   | 'essay'
-  | 'questions'
-  | 'flashcards'
   | 'analytics'
   | 'edital';
 
@@ -26,7 +28,8 @@ interface SidebarProps {
   onSelectView: (view: NavView) => void;
   streakCount: number;
   totalStudySecondsToday: number;
-  onOpenAuth?: () => void;
+  userEmail?: string;
+  onLogout: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -34,13 +37,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectView,
   streakCount,
   totalStudySecondsToday,
-  onOpenAuth,
+  userEmail = 'estudante@skillnapse.ai',
+  onLogout,
 }) => {
+  const { theme, toggleTheme } = useTheme();
+
   const navItems = [
     { id: 'tree' as NavView, label: 'Árvore de Estudo', icon: Network },
-    { id: 'schedule' as NavView, label: 'Cronograma', icon: Calendar },
-    { id: 'questions' as NavView, label: 'Banco de Questões', icon: CheckSquare },
-    { id: 'flashcards' as NavView, label: 'Flashcards (SRS)', icon: Layers },
+    { id: 'schedule' as NavView, label: 'Cronograma Semanal', icon: Calendar },
+    { id: 'simulado' as NavView, label: 'Simulados & Provas IA', icon: Award },
     { id: 'essay' as NavView, label: 'Laboratório de Redação', icon: PenTool },
     { id: 'analytics' as NavView, label: 'Desempenho & Lacunas', icon: BarChart3 },
     { id: 'edital' as NavView, label: 'Importar Edital IA', icon: FileUp },
@@ -52,13 +57,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
   };
 
+  const getInitials = (email: string) => {
+    const namePart = email.split('@')[0];
+    return namePart.slice(0, 2).toUpperCase();
+  };
+
   return (
-    <aside className="w-64 h-screen bg-zinc-950 border-r border-zinc-900 flex flex-col justify-between select-none shrink-0 z-30">
+    <aside className="w-64 h-screen bg-zinc-950 border-r border-zinc-800 flex flex-col justify-between select-none shrink-0 z-30 transition-colors">
       {/* Brand Header */}
       <div>
-        <div className="h-16 px-5 flex items-center justify-between border-b border-zinc-900/80">
+        <div className="h-16 px-5 flex items-center justify-between border-b border-zinc-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
@@ -71,6 +81,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="text-[11px] text-zinc-400 font-mono">KyoFoundation</div>
             </div>
           </div>
+
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-all"
+            title={theme === 'dark' ? 'Mudar para Tema Branco' : 'Mudar para Tema Escuro'}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-indigo-400" />
+            )}
+          </button>
         </div>
 
         {/* Navigation Links */}
@@ -85,15 +109,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => onSelectView(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                   isActive
-                    ? 'bg-zinc-800/90 text-zinc-100 shadow-sm border border-zinc-700/60'
-                    : 'text-zinc-300 hover:text-zinc-100 hover:bg-zinc-900/70 border border-transparent'
+                    ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700 font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 border border-transparent'
                 }`}
               >
                 <Icon
                   className={`w-4 h-4 transition-colors ${
-                    isActive ? 'text-indigo-400' : 'text-zinc-400'
+                    isActive ? 'text-indigo-400' : 'text-zinc-500'
                   }`}
                 />
                 <span className="truncate">{item.label}</span>
@@ -107,23 +131,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Gamification & User Footer */}
-      <div className="p-3 border-t border-zinc-900/90 space-y-3 bg-zinc-950/60">
+      <div className="p-3 border-t border-zinc-800 space-y-3 bg-zinc-950/70">
         {/* Streak & Today Study Time Widget */}
-        <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/60 space-y-2">
+        <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 space-y-2">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 text-amber-400 font-medium font-mono">
               <Flame className="w-4 h-4 fill-amber-500/20" />
               <span>{streakCount} dias seguidos</span>
             </div>
             <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-              Ativo
+              Ofensiva
             </span>
           </div>
 
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[11px] text-zinc-400">
               <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3 text-zinc-400" />
+                <Clock className="w-3 h-3 text-zinc-500" />
                 Líquidas hoje:
               </span>
               <span className="font-mono text-zinc-200">
@@ -142,23 +166,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* User Profile */}
-        <button
-          onClick={onOpenAuth}
-          className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-zinc-900/80 transition-colors text-left group"
-          title="Configurar Autenticação JWT e Conexão da API"
-        >
-          <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-semibold text-zinc-200 shrink-0 group-hover:border-indigo-500/50 transition-colors">
-            MS
-          </div>
-          <div className="truncate flex-1">
-            <div className="text-xs font-medium text-zinc-200 truncate flex items-center gap-1.5">
-              <span>Hokyozu</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="API Ativa" />
+        {/* User Profile & Logout Action */}
+        <div className="flex items-center justify-between p-2 rounded-xl bg-zinc-900/40 border border-zinc-800">
+          <div className="flex items-center gap-2.5 truncate flex-1 min-w-0 pr-2">
+            <div className="w-8 h-8 rounded-full bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-xs font-bold text-indigo-400 shrink-0">
+              {getInitials(userEmail)}
             </div>
-            <div className="text-[10px] text-zinc-400 font-mono truncate">Configurar JWT / Login</div>
+            <div className="truncate">
+              <div className="text-xs font-medium text-zinc-200 truncate">{userEmail}</div>
+              <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Conectado
+              </div>
+            </div>
           </div>
-        </button>
+
+          <button
+            type="button"
+            onClick={onLogout}
+            className="p-2 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors shrink-0"
+            title="Deslogar da conta"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </aside>
   );

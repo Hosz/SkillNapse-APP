@@ -10,3 +10,4 @@ export { editalService } from './editalService';
 export { desempenhoService } from './desempenhoService';
 export { gamificacaoService } from './gamificacaoService';
 export { cronogramaService } from './cronogramaService';
+export { simuladoService } from './simuladoService';

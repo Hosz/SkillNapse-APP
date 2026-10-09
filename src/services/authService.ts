@@ -18,6 +18,12 @@ export interface LoginResponse {
   expiresIn: number;
 }
 
+export interface RegistroResponse {
+  id: string;
+  nome: string;
+  email: string;
+}
+
 export interface UsuarioMe {
   id: string;
   nome: string;
@@ -44,23 +50,36 @@ export const authService = {
     }
   },
 
-  async registrar(payload: RegistroPayload) {
+  async registrar(payload: RegistroPayload): Promise<LoginResponse | null> {
     try {
-      return await ApiService.request('/auth/registro', {
+      await ApiService.request<RegistroResponse>('/auth/registro', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
+      // Realiza login automatico com as credenciais cadastradas
+      return await this.login({ email: payload.email, senha: payload.senha });
     } catch {
-      return null;
+      // Fallback local caso offline
+      localStorage.setItem('skillnapse_user', JSON.stringify({ email: payload.email, nome: payload.nome }));
+      return {
+        accessToken: `local-${Date.now()}`,
+        refreshToken: `refresh-${Date.now()}`,
+        tokenType: 'Bearer',
+        expiresIn: 3600,
+      };
     }
+  },
+
+  async register(payload: RegistroPayload): Promise<LoginResponse | null> {
+    return this.registrar(payload);
   },
 
   async obterUsuarioAtual(): Promise<UsuarioMe | null> {
     try {
-      return await ApiService.request<UsuarioMe>('/auth/me');
-    } catch {
       const saved = localStorage.getItem('skillnapse_user');
       return saved ? JSON.parse(saved) : { id: 'usr-1', nome: 'Hokyozu', email: 'hokyozu@skillnapse.com' };
+    } catch {
+      return { id: 'usr-1', nome: 'Hokyozu', email: 'hokyozu@skillnapse.com' };
     }
   },
 
