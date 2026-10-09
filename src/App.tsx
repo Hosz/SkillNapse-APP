@@ -1,122 +1,123 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState } from 'react';
+import { Sidebar } from './components/layout/Sidebar';
+import type { NavView } from './components/layout/Sidebar';
+import { StudyTree } from './components/study-tree/StudyTree';
+import { Workpad } from './components/workpad/Workpad';
+import { ScheduleView } from './components/schedule/ScheduleView';
+import { EssayLabView } from './components/essay/EssayLabView';
+import { EditalParserView } from './components/edital/EditalParserView';
+import { PerformanceView } from './components/analytics/PerformanceView';
+import { mockPlano } from './data/mockData';
+import type { Topico, Materia } from './types';
 
-function App() {
-  const [count, setCount] = useState(0)
+export function App() {
+  const [currentView, setCurrentView] = useState<NavView>('tree');
+  const [plano] = useState(mockPlano);
+
+  // Selected topic and subject for the Knowledge Tree & Workpad split-view
+  const [selectedTopic, setSelectedTopic] = useState<Topico | null>(
+    mockPlano.materias[0].topicos[0]
+  );
+  const [selectedMateria, setSelectedMateria] = useState<Materia>(
+    mockPlano.materias[0]
+  );
+
+  // Gamification state
+  const [streakCount, setStreakCount] = useState(14);
+  const [totalStudySecondsToday, setTotalStudySecondsToday] = useState(9900); // 2h 45m
+
+  const handleSelectTopic = (topic: Topico, materia: Materia) => {
+    setSelectedTopic(topic);
+    setSelectedMateria(materia);
+    if (currentView !== 'tree') {
+      setCurrentView('tree');
+    }
+  };
+
+  const handleSessionComplete = (seconds: number) => {
+    setTotalStudySecondsToday((prev) => prev + seconds);
+    setStreakCount((prev) => (prev === 14 ? 15 : prev));
+  };
+
+  const handleSelectNavView = (view: NavView) => {
+    setCurrentView(view);
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="flex h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-none">
+      {/* 1. Left Slim Sidebar */}
+      <Sidebar
+        currentView={currentView}
+        onSelectView={handleSelectNavView}
+        streakCount={streakCount}
+        totalStudySecondsToday={totalStudySecondsToday}
+      />
 
-      <div className="ticks"></div>
+      {/* 2. Main Content Area */}
+      <main className="flex-1 h-screen flex overflow-hidden">
+        {currentView === 'tree' && (
+          <div className="flex-1 h-full flex flex-col md:flex-row overflow-hidden">
+            {/* Center: Árvore de Conhecimento (55% width) */}
+            <StudyTree
+              plano={plano}
+              selectedTopicId={selectedTopic?.id || null}
+              onSelectTopic={handleSelectTopic}
+            />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+            {/* Right: Workpad Lateral Acoplado (45% width) */}
+            <Workpad
+              topic={selectedTopic}
+              materia={selectedMateria}
+              onClose={() => setSelectedTopic(null)}
+              onSessionComplete={handleSessionComplete}
+            />
+          </div>
+        )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        {currentView === 'schedule' && <ScheduleView />}
+
+        {currentView === 'essay' && <EssayLabView />}
+
+        {currentView === 'edital' && (
+          <EditalParserView onPlanCreated={() => setCurrentView('tree')} />
+        )}
+
+        {currentView === 'analytics' && <PerformanceView plano={plano} />}
+
+        {currentView === 'questions' && (
+          <div className="flex-1 h-full flex flex-col md:flex-row overflow-hidden">
+            <StudyTree
+              plano={plano}
+              selectedTopicId={selectedTopic?.id || null}
+              onSelectTopic={handleSelectTopic}
+            />
+            <Workpad
+              topic={selectedTopic}
+              materia={selectedMateria}
+              onClose={() => setSelectedTopic(null)}
+              onSessionComplete={handleSessionComplete}
+            />
+          </div>
+        )}
+
+        {currentView === 'flashcards' && (
+          <div className="flex-1 h-full flex flex-col md:flex-row overflow-hidden">
+            <StudyTree
+              plano={plano}
+              selectedTopicId={selectedTopic?.id || null}
+              onSelectTopic={handleSelectTopic}
+            />
+            <Workpad
+              topic={selectedTopic}
+              materia={selectedMateria}
+              onClose={() => setSelectedTopic(null)}
+              onSessionComplete={handleSessionComplete}
+            />
+          </div>
+        )}
+      </main>
+    </div>
+  );
 }
 
-export default App
+export default App;
