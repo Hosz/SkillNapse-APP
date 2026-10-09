@@ -8,6 +8,7 @@ import {
   Download,
 } from 'lucide-react';
 import type { Topico } from '../../types';
+import { canvasService } from '../../services';
 
 interface CanvasTabProps {
   topic: Topico;
@@ -34,9 +35,10 @@ export const CanvasTab: React.FC<CanvasTabProps> = ({ topic }) => {
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setNotes(val);
-    localStorage.setItem(`skillnapse_notes_${topic.id}`, val);
     setSavedStatus('Salvando...');
-    setTimeout(() => setSavedStatus('Salvo automaticamente'), 600);
+    canvasService.salvarRascunho({ topicoId: topic.id, notasTexto: val }).then(() => {
+      setSavedStatus('Salvo na nuvem & local');
+    });
   };
 
   // Canvas drawing handlers

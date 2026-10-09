@@ -1,0 +1,9 @@
+export { ApiService } from './api';
+export { planoService } from './planoService';
+export { sessaoService } from './sessaoService';
+export { canvasService } from './canvasService';
+export { questaoService } from './questaoService';
+export { flashcardService } from './flashcardService';
+export { redacaoService } from './redacaoService';
+export { editalService } from './editalService';
+export { desempenhoService } from './desempenhoService';

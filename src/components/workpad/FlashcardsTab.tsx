@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RotateCw, Sparkles, CheckCircle2 } from 'lucide-react';
 import type { Topico, Flashcard, Sm2Rating } from '../../types';
 import { mockFlashcards } from '../../data/mockData';
+import { flashcardService } from '../../services';
 
 interface FlashcardsTabProps {
   topic: Topico;
@@ -15,10 +16,22 @@ export const FlashcardsTab: React.FC<FlashcardsTabProps> = ({ topic }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [completedCount, setCompletedCount] = useState(0);
 
+  useEffect(() => {
+    flashcardService.listarPorTopico(topic.id).then((res) => {
+      if (res && res.length > 0) {
+        setCards(res);
+      }
+    });
+  }, [topic.id]);
+
   const currentCard = cards[currentIndex];
   const isFinished = currentIndex >= cards.length;
 
   const handleRateCard = (rating: Sm2Rating) => {
+    if (currentCard) {
+      flashcardService.revisarCard(currentCard.id, rating);
+    }
+
     setCards((prev) =>
       prev.map((c, i) =>
         i === currentIndex

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { Topico, Questao } from '../../types';
 import { mockQuestoes } from '../../data/mockData';
+import { questaoService } from '../../services';
 
 interface QuestionsTabProps {
   topic: Topico;
@@ -23,10 +24,25 @@ export const QuestionsTab: React.FC<QuestionsTabProps> = ({ topic }) => {
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
   const [isGenerating, setIsGenerating] = useState(false);
 
+  useEffect(() => {
+    questaoService.listarPorTopico(topic.id).then((res) => {
+      if (res && res.length > 0) {
+        setQuestions(res);
+      }
+    });
+  }, [topic.id]);
+
   const handleSelectOption = (questionId: string, optionId: string) => {
     if (selectedAnswers[questionId]) return; // already answered
     setSelectedAnswers((prev) => ({ ...prev, [questionId]: optionId }));
     setShowExplanation((prev) => ({ ...prev, [questionId]: true }));
+
+    // Send answer to backend API
+    questaoService.responderQuestao(questionId, {
+      alternativaEscolhidaId: optionId,
+      tempoGastoSegundos: 25,
+      topicoId: topic.id,
+    });
   };
 
   const handleToggleExplanation = (questionId: string) => {

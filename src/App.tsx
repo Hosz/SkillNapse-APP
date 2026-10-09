@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import type { NavView } from './components/layout/Sidebar';
 import { StudyTree } from './components/study-tree/StudyTree';
@@ -8,11 +8,12 @@ import { EssayLabView } from './components/essay/EssayLabView';
 import { EditalParserView } from './components/edital/EditalParserView';
 import { PerformanceView } from './components/analytics/PerformanceView';
 import { mockPlano } from './data/mockData';
-import type { Topico, Materia } from './types';
+import { planoService, sessaoService } from './services';
+import type { Topico, Materia, PlanoEstudo } from './types';
 
 export function App() {
   const [currentView, setCurrentView] = useState<NavView>('tree');
-  const [plano] = useState(mockPlano);
+  const [plano, setPlano] = useState<PlanoEstudo>(mockPlano);
 
   // Selected topic and subject for the Knowledge Tree & Workpad split-view
   const [selectedTopic, setSelectedTopic] = useState<Topico | null>(
@@ -26,6 +27,19 @@ export function App() {
   const [streakCount, setStreakCount] = useState(14);
   const [totalStudySecondsToday, setTotalStudySecondsToday] = useState(9900); // 2h 45m
 
+  // Fetch active study plan on mount
+  useEffect(() => {
+    planoService.obterPlanoAtivo().then((fetchedPlano) => {
+      if (fetchedPlano) {
+        setPlano(fetchedPlano);
+        if (fetchedPlano.materias.length > 0 && fetchedPlano.materias[0].topicos.length > 0) {
+          setSelectedMateria(fetchedPlano.materias[0]);
+          setSelectedTopic(fetchedPlano.materias[0].topicos[0]);
+        }
+      }
+    });
+  }, []);
+
   const handleSelectTopic = (topic: Topico, materia: Materia) => {
     setSelectedTopic(topic);
     setSelectedMateria(materia);
@@ -34,9 +48,17 @@ export function App() {
     }
   };
 
-  const handleSessionComplete = (seconds: number) => {
+  const handleSessionComplete = async (seconds: number) => {
     setTotalStudySecondsToday((prev) => prev + seconds);
     setStreakCount((prev) => (prev === 14 ? 15 : prev));
+
+    if (selectedTopic) {
+      await sessaoService.registrarSessao({
+        topicoId: selectedTopic.id,
+        duracaoLiquidaSegundos: seconds,
+        status: 'CONCLUIDA',
+      });
+    }
   };
 
   const handleSelectNavView = (view: NavView) => {
