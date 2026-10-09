@@ -26,6 +26,7 @@ interface SidebarProps {
   onSelectView: (view: NavView) => void;
   streakCount: number;
   totalStudySecondsToday: number;
+  onOpenAuth?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -33,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectView,
   streakCount,
   totalStudySecondsToday,
+  onOpenAuth,
 }) => {
   const navItems = [
     { id: 'tree' as NavView, label: 'Árvore de Estudo', icon: Network },
@@ -141,15 +143,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* User Profile */}
-        <div className="flex items-center gap-2.5 px-2 py-1.5">
-          <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-semibold text-zinc-200">
+        <button
+          onClick={onOpenAuth}
+          className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-zinc-900/80 transition-colors text-left group"
+          title="Configurar Autenticação JWT e Conexão da API"
+        >
+          <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-semibold text-zinc-200 shrink-0 group-hover:border-indigo-500/50 transition-colors">
             MS
           </div>
           <div className="truncate flex-1">
-            <div className="text-xs font-medium text-zinc-200 truncate">Hokyozu</div>
-            <div className="text-[10px] text-zinc-400 font-mono truncate">hokyozu@skillnapse.com</div>
+            <div className="text-xs font-medium text-zinc-200 truncate flex items-center gap-1.5">
+              <span>Hokyozu</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="API Ativa" />
+            </div>
+            <div className="text-[10px] text-zinc-400 font-mono truncate">Configurar JWT / Login</div>
           </div>
-        </div>
+        </button>
       </div>
     </aside>
   );

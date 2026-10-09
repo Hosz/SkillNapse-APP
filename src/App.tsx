@@ -7,6 +7,7 @@ import { ScheduleView } from './components/schedule/ScheduleView';
 import { EssayLabView } from './components/essay/EssayLabView';
 import { EditalParserView } from './components/edital/EditalParserView';
 import { PerformanceView } from './components/analytics/PerformanceView';
+import { AuthModal } from './components/layout/AuthModal';
 import { mockPlano } from './data/mockData';
 import { planoService, sessaoService, gamificacaoService } from './services';
 import type { Topico, Materia, PlanoEstudo } from './types';
@@ -14,6 +15,7 @@ import type { Topico, Materia, PlanoEstudo } from './types';
 export function App() {
   const [currentView, setCurrentView] = useState<NavView>('tree');
   const [plano, setPlano] = useState<PlanoEstudo>(mockPlano);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Selected topic and subject for the Knowledge Tree & Workpad split-view
   const [selectedTopic, setSelectedTopic] = useState<Topico | null>(
@@ -27,8 +29,7 @@ export function App() {
   const [streakCount, setStreakCount] = useState(14);
   const [totalStudySecondsToday, setTotalStudySecondsToday] = useState(9900); // 2h 45m
 
-  // Fetch active study plan, gamification streak and daily study time on mount
-  useEffect(() => {
+  const carregarDadosIniciais = () => {
     planoService.obterPlanoAtivo().then((fetchedPlano) => {
       if (fetchedPlano) {
         setPlano(fetchedPlano);
@@ -50,12 +51,17 @@ export function App() {
         setTotalStudySecondsToday(resumo.totalSegundosEstudados);
       }
     });
+  };
+
+  // Fetch active study plan, gamification streak and daily study time on mount
+  useEffect(() => {
+    carregarDadosIniciais();
   }, []);
 
   const handleSelectTopic = (topic: Topico, materia: Materia) => {
     setSelectedTopic(topic);
     setSelectedMateria(materia);
-    if (currentView !== 'tree') {
+    if (currentView !== 'tree' && currentView !== 'questions' && currentView !== 'flashcards') {
       setCurrentView('tree');
     }
   };
@@ -73,6 +79,47 @@ export function App() {
     }
   };
 
+  const handleAddMateria = () => {
+    const nome = prompt('Nome da nova disciplina (Ex: Economia do Setor Público):');
+    if (!nome) return;
+    const cores = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+    const corHex = cores[Math.floor(Math.random() * cores.length)];
+    const novaMateria: Materia = {
+      id: `mat-${Date.now()}`,
+      planoId: plano.id,
+      nome,
+      corHex,
+      ordem: plano.materias.length + 1,
+      topicos: [],
+    };
+    setPlano((prev) => ({
+      ...prev,
+      materias: [...prev.materias, novaMateria],
+    }));
+  };
+
+  const handleAddTopic = (materiaId: string) => {
+    const titulo = prompt('Título do novo tópico (Ex: Princípios Constitucionais):');
+    if (!titulo) return;
+    const pesoStr = prompt('Peso do tópico no edital (1 a 10):', '8');
+    const peso = Math.max(1, Math.min(10, parseInt(pesoStr || '5', 10)));
+    const novoTopico: Topico = {
+      id: `top-${Date.now()}`,
+      materiaId,
+      titulo,
+      peso,
+      proficiencia: 'INICIANTE',
+      ordem: 99,
+    };
+    setPlano((prev) => ({
+      ...prev,
+      materias: prev.materias.map((m) =>
+        m.id === materiaId ? { ...m, topicos: [...m.topicos, novoTopico] } : m
+      ),
+    }));
+    setSelectedTopic(novoTopico);
+  };
+
   const handleSelectNavView = (view: NavView) => {
     setCurrentView(view);
   };
@@ -85,6 +132,7 @@ export function App() {
         onSelectView={handleSelectNavView}
         streakCount={streakCount}
         totalStudySecondsToday={totalStudySecondsToday}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
       />
 
       {/* 2. Main Content Area */}
@@ -96,12 +144,15 @@ export function App() {
               plano={plano}
               selectedTopicId={selectedTopic?.id || null}
               onSelectTopic={handleSelectTopic}
+              onAddMateria={handleAddMateria}
+              onAddTopic={handleAddTopic}
             />
 
             {/* Right: Workpad Lateral Acoplado (45% width) */}
             <Workpad
               topic={selectedTopic}
               materia={selectedMateria}
+              initialTab="pomodoro"
               onClose={() => setSelectedTopic(null)}
               onSessionComplete={handleSessionComplete}
             />
@@ -124,10 +175,13 @@ export function App() {
               plano={plano}
               selectedTopicId={selectedTopic?.id || null}
               onSelectTopic={handleSelectTopic}
+              onAddMateria={handleAddMateria}
+              onAddTopic={handleAddTopic}
             />
             <Workpad
               topic={selectedTopic}
               materia={selectedMateria}
+              initialTab="questions"
               onClose={() => setSelectedTopic(null)}
               onSessionComplete={handleSessionComplete}
             />
@@ -140,16 +194,26 @@ export function App() {
               plano={plano}
               selectedTopicId={selectedTopic?.id || null}
               onSelectTopic={handleSelectTopic}
+              onAddMateria={handleAddMateria}
+              onAddTopic={handleAddTopic}
             />
             <Workpad
               topic={selectedTopic}
               materia={selectedMateria}
+              initialTab="flashcards"
               onClose={() => setSelectedTopic(null)}
               onSessionComplete={handleSessionComplete}
             />
           </div>
         )}
       </main>
+
+      {/* Auth & API Connection Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={carregarDadosIniciais}
+      />
     </div>
   );
 }

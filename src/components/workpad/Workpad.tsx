@@ -20,6 +20,7 @@ export type WorkpadTab = 'pomodoro' | 'canvas' | 'questions' | 'flashcards';
 interface WorkpadProps {
   topic: Topico | null;
   materia?: Materia;
+  initialTab?: WorkpadTab;
   onClose: () => void;
   onSessionComplete: (seconds: number) => void;
 }
@@ -27,10 +28,11 @@ interface WorkpadProps {
 export const Workpad: React.FC<WorkpadProps> = ({
   topic,
   materia,
+  initialTab = 'pomodoro',
   onClose,
   onSessionComplete,
 }) => {
-  const [activeTab, setActiveTab] = useState<WorkpadTab>('pomodoro');
+  const [activeTab, setActiveTab] = useState<WorkpadTab>(initialTab);
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!topic) {

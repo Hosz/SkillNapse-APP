@@ -14,6 +14,7 @@ interface StudyTreeProps {
   selectedTopicId: string | null;
   onSelectTopic: (topic: Topico, materia: Materia) => void;
   onAddMateria?: () => void;
+  onAddTopic?: (materiaId: string) => void;
 }
 
 export const StudyTree: React.FC<StudyTreeProps> = ({
@@ -21,6 +22,7 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
   selectedTopicId,
   onSelectTopic,
   onAddMateria,
+  onAddTopic,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -154,6 +156,7 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
               materia={materia}
               selectedTopicId={selectedTopicId}
               onSelectTopic={onSelectTopic}
+              onAddTopic={onAddTopic}
             />
           ))
         ) : (

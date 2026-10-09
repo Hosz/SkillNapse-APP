@@ -1,4 +1,5 @@
 export { ApiService } from './api';
+export { authService } from './authService';
 export { planoService } from './planoService';
 export { sessaoService } from './sessaoService';
 export { canvasService } from './canvasService';
