@@ -17,6 +17,17 @@ export const redacaoService = {
     }
   },
 
+  async gerarTemaAi(eixoTematico?: string): Promise<TemaRedacao | null> {
+    try {
+      return await ApiService.request<TemaRedacao>('/redacoes/temas/gerar', {
+        method: 'POST',
+        body: JSON.stringify({ eixoTematico }),
+      });
+    } catch {
+      return null;
+    }
+  },
+
   async submeterTexto(payload: SubmissaoTextoPayload) {
     try {
       return await ApiService.request('/redacoes/submissoes', {

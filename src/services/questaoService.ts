@@ -44,10 +44,11 @@ export const questaoService = {
     }
   },
 
-  async gerarQuestaoAi(topicoId: string): Promise<Questao | null> {
+  async gerarSimuladoAdaptativo(planoId: string, quantidade: number = 10): Promise<{ simuladoId: string; totalQuestoes: number } | null> {
     try {
-      return await ApiService.request<Questao>(`/questoes/gerar-ia?topicoId=${topicoId}`, {
+      return await ApiService.request('/simulados/adaptativo/gerar', {
         method: 'POST',
+        body: JSON.stringify({ planoId, quantidade }),
       });
     } catch {
       return null;

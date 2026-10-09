@@ -16,13 +16,21 @@ export const editalService = {
     }
   },
 
-  async converterParaPlano(editalId: string) {
+  async converterParaPlano(rascunhoId: string) {
     try {
-      return await ApiService.request(`/editais/${editalId}/converter-plano`, {
+      return await ApiService.request(`/editais/rascunhos/${rascunhoId}/converter`, {
         method: 'POST',
       });
     } catch {
       return null;
+    }
+  },
+
+  async listarRascunhos() {
+    try {
+      return await ApiService.request('/editais/rascunhos');
+    } catch {
+      return [];
     }
   },
 };

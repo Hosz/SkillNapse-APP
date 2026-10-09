@@ -7,3 +7,5 @@ export { flashcardService } from './flashcardService';
 export { redacaoService } from './redacaoService';
 export { editalService } from './editalService';
 export { desempenhoService } from './desempenhoService';
+export { gamificacaoService } from './gamificacaoService';
+export { cronogramaService } from './cronogramaService';

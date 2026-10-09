@@ -8,7 +8,7 @@ import { EssayLabView } from './components/essay/EssayLabView';
 import { EditalParserView } from './components/edital/EditalParserView';
 import { PerformanceView } from './components/analytics/PerformanceView';
 import { mockPlano } from './data/mockData';
-import { planoService, sessaoService } from './services';
+import { planoService, sessaoService, gamificacaoService } from './services';
 import type { Topico, Materia, PlanoEstudo } from './types';
 
 export function App() {
@@ -27,7 +27,7 @@ export function App() {
   const [streakCount, setStreakCount] = useState(14);
   const [totalStudySecondsToday, setTotalStudySecondsToday] = useState(9900); // 2h 45m
 
-  // Fetch active study plan on mount
+  // Fetch active study plan, gamification streak and daily study time on mount
   useEffect(() => {
     planoService.obterPlanoAtivo().then((fetchedPlano) => {
       if (fetchedPlano) {
@@ -36,6 +36,18 @@ export function App() {
           setSelectedMateria(fetchedPlano.materias[0]);
           setSelectedTopic(fetchedPlano.materias[0].topicos[0]);
         }
+      }
+    });
+
+    gamificacaoService.obterOfensiva().then((ofensiva) => {
+      if (ofensiva?.totalDiasConsecutivos) {
+        setStreakCount(ofensiva.totalDiasConsecutivos);
+      }
+    });
+
+    sessaoService.obterResumoHoje().then((resumo) => {
+      if (resumo?.totalSegundosEstudados) {
+        setTotalStudySecondsToday(resumo.totalSegundosEstudados);
       }
     });
   }, []);

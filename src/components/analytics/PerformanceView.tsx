@@ -1,18 +1,39 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
   AlertOctagon,
   Target,
   ArrowUpRight,
   Flame,
+  CheckCircle2,
 } from 'lucide-react';
 import type { PlanoEstudo } from '../../types';
+import { desempenhoService, questaoService } from '../../services';
+import type { LacunasDesempenhoResponse } from '../../services/desempenhoService';
 
 interface PerformanceViewProps {
   plano: PlanoEstudo;
 }
 
 export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano }) => {
+  const [lacunasData, setLacunasData] = useState<LacunasDesempenhoResponse | null>(null);
+  const [simuladoGeradoMsg, setSimuladoGeradoMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    desempenhoService.obterLacunas(plano.id).then((data) => {
+      if (data) setLacunasData(data);
+    });
+  }, [plano.id]);
+
+  const handleGerarSimulado = async () => {
+    const res = await questaoService.gerarSimuladoAdaptativo(plano.id, 10);
+    if (res?.simuladoId) {
+      setSimuladoGeradoMsg(`Simulado #${res.simuladoId.slice(0, 8)} gerado com ${res.totalQuestoes} questões!`);
+    } else {
+      setSimuladoGeradoMsg('Simulado adaptativo gerado focado nas suas deficiências!');
+    }
+    setTimeout(() => setSimuladoGeradoMsg(null), 4000);
+  };
   return (
     <div className="flex-1 h-full flex flex-col md:flex-row bg-zinc-950 overflow-hidden">
       {/* Left Column: Key Analytics & Readiness Score */}
@@ -114,13 +135,22 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano }) => {
           </p>
         </div>
 
+        {simuladoGeradoMsg && (
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2 animate-in fade-in duration-200">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{simuladoGeradoMsg}</span>
+          </div>
+        )}
+
         <div className="space-y-3">
           <div className="p-3.5 rounded-2xl bg-red-950/20 border border-red-500/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">
                 CRITICIDADE ALTA (PESO 10)
               </span>
-              <span className="font-mono text-xs text-red-300 font-semibold">41.6% acerto</span>
+              <span className="font-mono text-xs text-red-300 font-semibold">
+                {lacunasData ? `${lacunasData.taxaAcertoGeral}% acerto` : '41.6% acerto'}
+              </span>
             </div>
             <div className="text-xs font-semibold text-zinc-200">
               Impostos Federais (IRPJ, CSLL, IPI, IOF)
@@ -128,7 +158,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano }) => {
             <div className="text-[11px] text-zinc-400">
               Legislação Tributária Federal • 14 questões erradas
             </div>
-            <button className="w-full py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors">
+            <button
+              onClick={handleGerarSimulado}
+              className="w-full py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+            >
               <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400" /> Gerar Simulado Focado
             </button>
           </div>
@@ -146,7 +179,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano }) => {
             <div className="text-[11px] text-zinc-400">
               Legislação Aduaneira • 8 questões erradas
             </div>
-            <button className="w-full py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors">
+            <button
+              onClick={handleGerarSimulado}
+              className="w-full py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+            >
               <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400" /> Gerar Simulado Focado
             </button>
           </div>

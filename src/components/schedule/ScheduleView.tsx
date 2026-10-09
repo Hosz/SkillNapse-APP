@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -10,10 +10,22 @@ import {
 } from 'lucide-react';
 import type { BlocoCronograma, DiaSemana, TipoBloco } from '../../types';
 import { mockCronograma } from '../../data/mockData';
+import { cronogramaService } from '../../services';
 
 export const ScheduleView: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<DiaSemana>('SEGUNDA');
+  const [cronograma, setCronograma] = useState<BlocoCronograma[]>(mockCronograma);
   const [selectedBloco, setSelectedBloco] = useState<BlocoCronograma | null>(mockCronograma[0]);
+
+  useEffect(() => {
+    cronogramaService.obterGradeSemanal().then((grade) => {
+      if (grade && grade.length > 0) {
+        setCronograma(grade);
+        const primeiroDoDia = grade.find((b) => b.diaSemana === selectedDay);
+        if (primeiroDoDia) setSelectedBloco(primeiroDoDia);
+      }
+    });
+  }, [selectedDay]);
 
   const days: { id: DiaSemana; label: string }[] = [
     { id: 'SEGUNDA', label: 'Segunda-feira' },
@@ -25,7 +37,7 @@ export const ScheduleView: React.FC = () => {
     { id: 'DOMINGO', label: 'Domingo' },
   ];
 
-  const blocosDoDia = mockCronograma.filter((b) => b.diaSemana === selectedDay);
+  const blocosDoDia = cronograma.filter((b) => b.diaSemana === selectedDay);
 
   const getTipoBlocoMeta = (tipo: TipoBloco) => {
     switch (tipo) {

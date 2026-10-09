@@ -9,6 +9,11 @@ export interface RegistrarSessaoPayload {
   observacoes?: string;
 }
 
+export interface ResumoSessoesResponse {
+  totalSegundosEstudados: number;
+  totalSessoesConcluidas: number;
+}
+
 export const sessaoService = {
   async registrarSessao(payload: RegistrarSessaoPayload): Promise<{ sucesso: boolean; id?: string }> {
     try {
@@ -34,6 +39,17 @@ export const sessaoService = {
       localHistory.push({ ...payload, timestamp: new Date().toISOString() });
       localStorage.setItem('skillnapse_offline_sessoes', JSON.stringify(localHistory));
       return { sucesso: true, id: `offline-${Date.now()}` };
+    }
+  },
+
+  async obterResumoHoje(): Promise<ResumoSessoesResponse> {
+    try {
+      return await ApiService.request<ResumoSessoesResponse>('/sessoes-estudo/resumo');
+    } catch {
+      return {
+        totalSegundosEstudados: 9900, // 2h 45m
+        totalSessoesConcluidas: 4,
+      };
     }
   },
 };

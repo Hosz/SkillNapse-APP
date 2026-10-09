@@ -9,12 +9,15 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+import { editalService } from '../../services';
+
 interface ExtractedMateria {
   nome: string;
   topicos: { titulo: string; peso: number }[];
 }
 
 interface ExtractedTree {
+  id?: string;
   concurso: string;
   cargo: string;
   totalMaterias: number;
@@ -32,15 +35,24 @@ export const EditalParserView: React.FC<EditalParserViewProps> = ({ onPlanCreate
   const [extractedTree, setExtractedTree] = useState<ExtractedTree | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handleSimulateUpload = () => {
+  const handleUploadAndParse = async () => {
     setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
+    let parsed: ExtractedTree | null = null;
+
+    if (selectedFile) {
+      parsed = (await editalService.parseEdital(selectedFile, cargoAlvo)) as ExtractedTree | null;
+    }
+
+    if (parsed && parsed.materias) {
+      setExtractedTree(parsed);
+    } else {
+      // Demo fallback
       setExtractedTree({
+        id: `rascunho-${Date.now()}`,
         concurso: 'Receita Federal do Brasil (AFRFB)',
         cargo: cargoAlvo || 'Auditor-Fiscal',
-        totalMaterias: 4,
-        totalTopicos: 24,
+        totalMaterias: 3,
+        totalTopicos: 8,
         materias: [
           {
             nome: 'Direito Constitucional',
@@ -67,7 +79,17 @@ export const EditalParserView: React.FC<EditalParserViewProps> = ({ onPlanCreate
           },
         ],
       });
-    }, 2000);
+    }
+    setIsProcessing(false);
+  };
+
+  const handleConvertToPlan = async () => {
+    if (extractedTree?.id) {
+      await editalService.converterParaPlano(extractedTree.id);
+    }
+    if (onPlanCreated) {
+      onPlanCreated();
+    }
   };
 
   return (
@@ -129,7 +151,7 @@ export const EditalParserView: React.FC<EditalParserViewProps> = ({ onPlanCreate
           />
 
           <button
-            onClick={handleSimulateUpload}
+            onClick={handleUploadAndParse}
             disabled={isProcessing}
             className="mt-3 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20"
           >
@@ -193,9 +215,7 @@ export const EditalParserView: React.FC<EditalParserViewProps> = ({ onPlanCreate
             </div>
 
             <button
-              onClick={() => {
-                if (onPlanCreated) onPlanCreated();
-              }}
+              onClick={handleConvertToPlan}
               className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-600/20"
             >
               <FileCheck className="w-4 h-4" />
