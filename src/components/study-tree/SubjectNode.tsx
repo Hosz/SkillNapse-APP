@@ -72,10 +72,10 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
   const totalSubtopicosMateria = countSubtopics(topicos);
 
   return (
-    <div className="rounded-2xl border-2 border-zinc-200 dark:border-zinc-700/80 bg-white dark:bg-zinc-950/70 overflow-hidden shadow-xs transition-all flex">
+    <div className={`rounded-2xl border-2 border-zinc-200 dark:border-zinc-700/80 bg-white dark:bg-zinc-950/70 shadow-xs transition-all flex relative hover:z-20 focus-within:z-30 ${isMenuOpen ? 'z-30' : ''}`}>
       {/* 1. Faixa lateral colorida destacada da matéria (visível tanto no tema escuro quanto no tema branco) */}
       <div
-        className="w-2.5 shrink-0 self-stretch"
+        className="w-2.5 shrink-0 self-stretch rounded-l-[14px]"
         style={{ backgroundColor: materia.corHex }}
         title={`Disciplina: ${materia.nome}`}
       />
@@ -84,7 +84,11 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
       <div className="flex-1 min-w-0">
         {/* Subject Header Card */}
         <div
-          className="p-3.5 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/80 hover:bg-zinc-100/80 dark:hover:bg-zinc-900 cursor-pointer transition-colors border-b-2 border-zinc-200 dark:border-zinc-800"
+          className={`p-3.5 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/80 hover:bg-zinc-100/80 dark:hover:bg-zinc-900 cursor-pointer transition-colors ${
+            isExpanded
+              ? 'border-b-2 border-zinc-200 dark:border-zinc-800 rounded-tr-[14px]'
+              : 'rounded-r-[14px]'
+          }`}
           onClick={() => setIsExpanded(!isExpanded)}
         >
         <div className="flex items-center gap-3">
@@ -147,7 +151,7 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
 
             {isMenuOpen && (
               <div
-                className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-1 z-40 space-y-0.5"
+                className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-1 z-50 space-y-0.5"
                 onMouseLeave={() => setIsMenuOpen(false)}
               >
                 {onPraticarSimulado && (
@@ -218,7 +222,7 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
 
       {/* Topics list with vertical tree guide */}
       {isExpanded && (
-        <div className="p-3 bg-zinc-50/50 dark:bg-zinc-950/40">
+        <div className="p-3 bg-zinc-50/50 dark:bg-zinc-950/40 rounded-br-[14px]">
           {topicos.length > 0 ? (
             <div
               className="pl-3.5 space-y-2.5 ml-2.5"

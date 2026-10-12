@@ -123,7 +123,7 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
   return (
     <div className="flex-1 h-full flex flex-col bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans select-none">
       {/* Plan Header */}
-      <div className="p-5 border-b-2 border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 backdrop-blur-sm space-y-4 shrink-0">
+      <div className="p-5 border-b-2 border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 backdrop-blur-sm space-y-4 shrink-0 relative z-20">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -161,7 +161,7 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
 
                 {isPlanMenuOpen && (
                   <div
-                    className="absolute left-0 top-full mt-1 w-48 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-1 z-40 space-y-0.5"
+                    className="absolute left-0 top-full mt-1 w-48 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-1 z-50 space-y-0.5"
                     onMouseLeave={() => setIsPlanMenuOpen(false)}
                   >
                     {onEditPlano && (

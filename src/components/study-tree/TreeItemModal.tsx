@@ -11,6 +11,7 @@ import {
   Check,
   Loader2,
   Briefcase,
+  FileText,
 } from 'lucide-react';
 
 export type TreeItemType = 'plano' | 'materia' | 'topico' | 'subtopico';
@@ -19,6 +20,7 @@ export type TreeItemMode = 'create' | 'edit';
 export interface TreeItemFormData {
   titulo: string;
   cargoAlvo?: string;
+  descricao?: string;
   corHex?: string;
   peso?: number;
 }
@@ -56,6 +58,7 @@ export const TreeItemModal: React.FC<TreeItemModalProps> = ({
 }) => {
   const [titulo, setTitulo] = useState('');
   const [cargoAlvo, setCargoAlvo] = useState('');
+  const [descricao, setDescricao] = useState('');
   const [corHex, setCorHex] = useState('#3b82f6');
   const [peso, setPeso] = useState(5);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +69,7 @@ export const TreeItemModal: React.FC<TreeItemModalProps> = ({
     if (isOpen) {
       setTitulo(initialData?.titulo || '');
       setCargoAlvo(initialData?.cargoAlvo || '');
+      setDescricao(initialData?.descricao || '');
       setCorHex(initialData?.corHex || PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
       setPeso(initialData?.peso ?? (type === 'subtopico' ? 5 : type === 'topico' ? 8 : 5));
       setError(null);
@@ -110,6 +114,7 @@ export const TreeItemModal: React.FC<TreeItemModalProps> = ({
       await onSave({
         titulo: cleanTitulo,
         cargoAlvo: cargoAlvo.trim(),
+        descricao: descricao.trim(),
         corHex,
         peso,
       });
@@ -262,23 +267,41 @@ export const TreeItemModal: React.FC<TreeItemModalProps> = ({
             />
           </div>
 
-          {/* Campo Específico de Plano: Cargo Alvo */}
+          {/* Campo Específico de Plano: Cargo Alvo & Descrição */}
           {type === 'plano' && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Briefcase className="w-3.5 h-3.5 text-zinc-400" />
-                <span>Cargo ou Concurso Alvo</span>
-                <span className="text-xs text-zinc-400 font-normal lowercase">(opcional)</span>
-              </label>
-              <input
-                type="text"
-                value={cargoAlvo}
-                onChange={(e) => setCargoAlvo(e.target.value)}
-                placeholder="Ex: Auditor Federal de Controle Externo, Delegado PF"
-                disabled={isLoading}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
-              />
-            </div>
+            <>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Cargo ou Concurso Alvo</span>
+                  <span className="text-xs text-zinc-400 font-normal lowercase">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={cargoAlvo}
+                  onChange={(e) => setCargoAlvo(e.target.value)}
+                  placeholder="Ex: Auditor Federal de Controle Externo, Delegado PF"
+                  disabled={isLoading}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Descrição / Observações</span>
+                  <span className="text-xs text-zinc-400 font-normal lowercase">(opcional)</span>
+                </label>
+                <textarea
+                  value={descricao}
+                  onChange={(e) => setDescricao(e.target.value)}
+                  placeholder="Ex: Foco no edital 2026, banca Cebraspe, ênfase em matérias jurídicas..."
+                  rows={2}
+                  disabled={isLoading}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors resize-none"
+                />
+              </div>
+            </>
           )}
 
           {/* Campo Específico de Matéria: Seletor de Cores */}

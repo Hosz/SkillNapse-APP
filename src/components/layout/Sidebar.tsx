@@ -64,6 +64,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const formatHoursMinutes = (totalSeconds: number) => {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours === 0 && minutes === 0 && seconds > 0) {
+      return `${seconds}s`;
+    }
     return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
   };
 

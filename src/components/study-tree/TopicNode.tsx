@@ -68,7 +68,7 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
   };
 
   return (
-    <div className="relative">
+    <div className={`relative ${isMenuOpen ? 'z-30' : ''}`}>
       {/* Node Row */}
       <div
         className={`group flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer border-2 ${
@@ -185,7 +185,7 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
 
             {isMenuOpen && (
               <div
-                className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-1 z-40 space-y-0.5"
+                className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-1 z-50 space-y-0.5"
                 onMouseLeave={() => setIsMenuOpen(false)}
               >
                 {isSelected && (

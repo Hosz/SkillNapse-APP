@@ -95,14 +95,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     }
   };
 
-  const handleDemoAccess = () => {
-    localStorage.setItem(
-      'skillnapse_user',
-      JSON.stringify({ email: 'demo@skillnapse.ai', nome: 'Estudante Demo' })
-    );
-    onAuthSuccess();
-  };
-
   return (
     <div className="min-h-screen w-screen bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col justify-between selection:bg-indigo-500 selection:text-white relative overflow-hidden transition-colors">
       {/* Background Decorative Blobs */}
@@ -122,7 +114,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 PLATAFORMA
               </span>
             </div>
-            <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">Ecossistema Kyofuse</div>
+            <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">Ecossistema KyoFoundation</div>
           </div>
         </div>
 
@@ -347,23 +339,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
               </button>
             </form>
           )}
-
-          {/* Quick Demo Option */}
-          <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800/80">
-            <button
-              type="button"
-              onClick={handleDemoAccess}
-              className="w-full py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-semibold transition-all cursor-pointer"
-            >
-              Testar com Modo Convidado / Dados Locais
-            </button>
-          </div>
         </div>
       </main>
 
       {/* Footer */}
       <footer className="h-12 px-6 flex items-center justify-center text-[11px] text-zinc-500 dark:text-zinc-400 font-mono border-t border-zinc-200 dark:border-zinc-800 z-10">
-        SkillNapse © 2026 • Padrão Arquitetural Kyofuse • API Spring Boot 3.4
+        SkillNapse © 2026 • KyoFoundation
       </footer>
     </div>
   );
