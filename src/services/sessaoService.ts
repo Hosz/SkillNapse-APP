@@ -11,14 +11,17 @@ export interface RegistrarSessaoPayload {
 
 export interface ResumoSessoesResponse {
   totalSegundosEstudados: number;
+  totalSegundosLiquidos?: number;
+  totalHorasLiquidas?: number;
   totalSessoesConcluidas: number;
 }
 
 export const sessaoService = {
   async registrarSessao(payload: RegistrarSessaoPayload): Promise<{ sucesso: boolean; id?: string }> {
     try {
+      const duracao = Math.max(1, payload.duracaoLiquidaSegundos || 1);
       const now = new Date();
-      const past = new Date(now.getTime() - payload.duracaoLiquidaSegundos * 1000);
+      const past = new Date(now.getTime() - (duracao + 2) * 1000);
 
       const response = await ApiService.request<{ id: string }>('/sessoes-estudo', {
         method: 'POST',
@@ -26,7 +29,7 @@ export const sessaoService = {
           topicoId: payload.topicoId,
           iniciadoEm: payload.iniciadoEm || past.toISOString(),
           finalizadoEm: payload.finalizadoEm || now.toISOString(),
-          duracaoLiquidaSegundos: payload.duracaoLiquidaSegundos,
+          duracaoLiquidaSegundos: duracao,
           status: payload.status,
           observacoes: payload.observacoes || 'Sessão Pomodoro consolidada via frontend.',
         }),
@@ -44,10 +47,19 @@ export const sessaoService = {
 
   async obterResumoHoje(): Promise<ResumoSessoesResponse> {
     try {
-      return await ApiService.request<ResumoSessoesResponse>('/sessoes-estudo/resumo');
+      const res = await ApiService.request<any>('/sessoes-estudo/resumo');
+      const segundos = res?.totalSegundosLiquidos ?? res?.totalSegundosEstudados ?? 0;
+      return {
+        totalSegundosEstudados: segundos,
+        totalSegundosLiquidos: segundos,
+        totalHorasLiquidas: res?.totalHorasLiquidas ?? (segundos / 3600),
+        totalSessoesConcluidas: res?.totalSessoesConcluidas ?? 0,
+      };
     } catch {
       return {
         totalSegundosEstudados: 0,
+        totalSegundosLiquidos: 0,
+        totalHorasLiquidas: 0,
         totalSessoesConcluidas: 0,
       };
     }

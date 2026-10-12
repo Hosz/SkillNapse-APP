@@ -4,10 +4,11 @@ import type { Topico } from '../../types';
 
 interface PomodoroTabProps {
   topic: Topico;
+  streakCount: number;
   onSessionComplete: (seconds: number) => void;
 }
 
-export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComplete }) => {
+export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, streakCount, onSessionComplete }) => {
   // Configured default times
   const [customFocoMinutes, setCustomFocoMinutes] = useState<number>(() => {
     return parseInt(localStorage.getItem('skillnapse_pomo_foco') || '25', 10);
@@ -112,6 +113,16 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
     return () => clearInterval(interval);
   }, [isRunning, topic.id]);
 
+  // Se o cronômetro zerar naturalmente pelo countdown
+  useEffect(() => {
+    if (secondsLeft === 0 && !isRunning && justCompleted && sessionSecondsElapsed > 0) {
+      onSessionComplete(sessionSecondsElapsed);
+      setSessionSecondsElapsed(0);
+      const timer = setTimeout(() => setJustCompleted(false), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [secondsLeft, isRunning, justCompleted, sessionSecondsElapsed, onSessionComplete]);
+
   const handleModeChange = (newMinutes: number, newMode: 'FOCO' | 'PAUSA_CURTA' | 'PAUSA_LONGA') => {
     setIsRunning(false);
     setInitialMinutes(newMinutes);
@@ -130,11 +141,14 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
 
   const handleFinishSession = () => {
     setIsRunning(false);
-    if (sessionSecondsElapsed > 0) {
-      onSessionComplete(sessionSecondsElapsed);
-    } else {
-      onSessionComplete(initialMinutes * 60 - secondsLeft || 300);
+    const secsToRegister =
+      sessionSecondsElapsed > 0
+        ? sessionSecondsElapsed
+        : Math.max(1, initialMinutes * 60 - secondsLeft);
+    if (secsToRegister > 0) {
+      onSessionComplete(secsToRegister);
     }
+    setSessionSecondsElapsed(0);
     setJustCompleted(true);
     localStorage.removeItem(`skillnapse_pomodoro_${topic.id}`);
     setTimeout(() => setJustCompleted(false), 4000);
@@ -162,8 +176,21 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
   const seconds = secondsLeft % 60;
   const progressPercent = ((initialMinutes * 60 - secondsLeft) / (initialMinutes * 60)) * 100;
 
-  const totalTopicHours = Math.floor((topic.tempoLiquidoSegundos || 0) / 3600);
-  const totalTopicMinutes = Math.floor(((topic.tempoLiquidoSegundos || 0) % 3600) / 60);
+  const accumulatedTopicSeconds = (topic.tempoLiquidoSegundos || 0) + sessionSecondsElapsed;
+  const totalTopicHours = Math.floor(accumulatedTopicSeconds / 3600);
+  const totalTopicMinutes = Math.floor((accumulatedTopicSeconds % 3600) / 60);
+  const totalTopicSecs = accumulatedTopicSeconds % 60;
+
+  const formatTopicLiquido = () => {
+    if (accumulatedTopicSeconds === 0) return '0h 00m';
+    if (totalTopicHours === 0 && totalTopicMinutes === 0) {
+      return `${totalTopicSecs}s`;
+    }
+    if (totalTopicHours === 0) {
+      return `${totalTopicMinutes}m ${totalTopicSecs > 0 ? `${totalTopicSecs}s` : ''}`.trim();
+    }
+    return `${totalTopicHours}h ${totalTopicMinutes.toString().padStart(2, '0')}m`;
+  };
 
   return (
     <div className="p-5 flex flex-col h-full justify-between select-none font-sans bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
@@ -281,13 +308,13 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
           <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
             <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">Horas líquidas no tópico</div>
             <div className="text-base font-mono font-semibold text-zinc-900 dark:text-zinc-200 mt-0.5">
-              {totalTopicHours}h {totalTopicMinutes}m
+              {formatTopicLiquido()}
             </div>
           </div>
           <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
             <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">Ofensiva ativa</div>
             <div className="text-base font-mono font-semibold text-amber-600 dark:text-amber-400 mt-0.5 flex items-center gap-1.5">
-              <Flame className="w-4 h-4 fill-amber-500/20" /> 14 dias
+              <Flame className="w-4 h-4 fill-amber-500/20 text-amber-500" /> {streakCount} {streakCount === 1 ? 'dia' : 'dias'}
             </div>
           </div>
         </div>

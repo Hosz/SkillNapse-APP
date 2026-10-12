@@ -335,6 +335,48 @@ function AppContent() {
     setTotalStudySecondsToday((prev) => prev + seconds);
     setStreakCount((prev) => (prev === 0 ? 1 : prev));
 
+    // Atualiza localmente o tempo líquido no tópico selecionado
+    if (selectedTopic) {
+      setSelectedTopic((prev) =>
+        prev
+          ? {
+              ...prev,
+              tempoLiquidoSegundos: (prev.tempoLiquidoSegundos || 0) + seconds,
+            }
+          : null
+      );
+    }
+
+    // Atualiza também na árvore de matérias/tópicos do plano ativo em memória
+    setPlano((prevPlano) => {
+      if (!prevPlano) return null;
+      return {
+        ...prevPlano,
+        materias: prevPlano.materias.map((mat) => ({
+          ...mat,
+          topicos: (mat.topicos || []).map((top) => {
+            if (top.id === selectedTopic?.id) {
+              return {
+                ...top,
+                tempoLiquidoSegundos: (top.tempoLiquidoSegundos || 0) + seconds,
+              };
+            }
+            return {
+              ...top,
+              subtopicos: (top.subtopicos || []).map((sub) =>
+                sub.id === selectedTopic?.id
+                  ? {
+                      ...sub,
+                      tempoLiquidoSegundos: (sub.tempoLiquidoSegundos || 0) + seconds,
+                    }
+                  : sub
+              ),
+            };
+          }),
+        })),
+      };
+    });
+
     const targetTopicId =
       selectedTopic?.id && selectedTopic.id !== 'geral'
         ? selectedTopic.id
@@ -380,6 +422,7 @@ function AppContent() {
       initialData: {
         titulo: planoAtual.titulo,
         cargoAlvo: planoAtual.cargoAlvo || '',
+        descricao: planoAtual.descricao || '',
       },
       rawEntity: planoAtual,
     });
@@ -516,6 +559,7 @@ function AppContent() {
           const novo = await planoService.criarPlano({
             titulo: formData.titulo,
             cargoAlvo: formData.cargoAlvo || 'Geral',
+            descricao: formData.descricao || undefined,
           });
           const planoCriado: PlanoEstudo = {
             ...novo,
@@ -530,22 +574,25 @@ function AppContent() {
           const planoAtual = rawEntity as PlanoEstudo;
           await planoService.editarPlano(planoAtual.id, {
             titulo: formData.titulo,
+            descricao: formData.descricao,
           });
           const novoTitulo = formData.titulo;
           const novoCargo = formData.cargoAlvo || planoAtual.cargoAlvo;
+          const novaDescricao = formData.descricao !== undefined ? formData.descricao : planoAtual.descricao;
           setPlano((prev) =>
             prev
               ? {
                   ...prev,
                   titulo: novoTitulo,
                   cargoAlvo: novoCargo,
+                  descricao: novaDescricao,
                 }
               : null
           );
           setPlanosLista((prev) =>
             prev.map((p) =>
               p.id === planoAtual.id
-                ? { ...p, titulo: novoTitulo, cargoAlvo: novoCargo }
+                ? { ...p, titulo: novoTitulo, cargoAlvo: novoCargo, descricao: novaDescricao }
                 : p
             )
           );
@@ -955,6 +1002,7 @@ function AppContent() {
                 materia={selectedMateria || undefined}
                 planoId={plano?.id || planosLista[0]?.id}
                 initialTab="pomodoro"
+                streakCount={streakCount}
                 onClose={handleClearSelection}
                 onSessionComplete={handleSessionComplete}
                 onPraticarSimulado={handlePraticarSimulado}

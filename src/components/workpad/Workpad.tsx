@@ -23,6 +23,7 @@ interface WorkpadProps {
   materia?: Materia;
   planoId?: string;
   initialTab?: TicketType;
+  streakCount?: number;
   onClose?: () => void;
   onSessionComplete: (seconds: number) => void;
   onPraticarSimulado?: (params: {
@@ -39,6 +40,7 @@ export const Workpad: React.FC<WorkpadProps> = ({
   materia,
   planoId,
   initialTab = 'pomodoro',
+  streakCount = 0,
   onClose,
   onSessionComplete,
   onPraticarSimulado,
@@ -210,6 +212,7 @@ export const Workpad: React.FC<WorkpadProps> = ({
               <PomodoroTab
                 key={effectiveTopic.id}
                 topic={effectiveTopic}
+                streakCount={streakCount}
                 onSessionComplete={onSessionComplete}
               />
             )}
