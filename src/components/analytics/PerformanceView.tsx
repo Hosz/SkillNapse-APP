@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   TrendingUp,
   AlertOctagon,
@@ -10,6 +10,7 @@ import {
   Loader2,
   Play,
   X,
+  XCircle,
   Sparkles,
   Printer,
   Clock,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { PlanoEstudo } from '../../types';
 import { desempenhoService, simuladoService } from '../../services';
+import { isAbortError } from '../../services/api';
 import type { RelatorioLacunasResponse, TopicoCriticoItem } from '../../services/desempenhoService';
 
 interface PerformanceViewProps {
@@ -46,7 +48,12 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano, onNavig
       .then(([relatorio, criticos]) => {
         if (!isMounted) return;
         if (relatorio) setLacunasData(relatorio);
-        if (criticos) setTopicosCriticos(criticos);
+        if (criticos) {
+          const criticosFiltrados = criticos.filter(
+            (c) => c.totalTentativas > 0 && c.taxaAcerto < 60 && c.criticidade !== 'SEM_DADOS'
+          );
+          setTopicosCriticos(criticosFiltrados);
+        }
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -54,19 +61,41 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano, onNavig
 
     return () => {
       isMounted = false;
+      if (simuladoAbortRef.current) {
+        simuladoAbortRef.current.abort();
+        simuladoAbortRef.current = null;
+      }
     };
   }, [plano.id]);
 
+  const simuladoAbortRef = useRef<AbortController | null>(null);
+
+  const handleCancelarSimulado = () => {
+    if (simuladoAbortRef.current) {
+      simuladoAbortRef.current.abort();
+      simuladoAbortRef.current = null;
+    }
+    setGeneratingTopicoId(null);
+  };
+
   const handleGerarSimulado = async (topicoId?: string, topicoTitulo?: string) => {
-    setGeneratingTopicoId(topicoId || 'geral');
+    const targetId = topicoId || 'geral';
+    setGeneratingTopicoId(targetId);
     setErrorMessage(null);
     setGeneratedSimulado(null);
+
+    const controller = new AbortController();
+    simuladoAbortRef.current = controller;
+
     try {
-      const res = await simuladoService.gerarSimuladoAdaptativo({
-        planoEstudoId: plano.id,
-        quantidadeQuestoes: 10,
-        topicoIds: topicoId ? [topicoId] : undefined,
-      });
+      const res = await simuladoService.gerarSimuladoAdaptativo(
+        {
+          planoEstudoId: plano.id,
+          quantidadeQuestoes: 10,
+          topicoIds: topicoId ? [topicoId] : undefined,
+        },
+        controller.signal
+      );
       if (res?.simuladoId) {
         setGeneratedSimulado({
           id: res.simuladoId,
@@ -76,9 +105,13 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano, onNavig
       } else {
         setErrorMessage('Não foi possível gerar o simulado adaptativo no momento.');
       }
-    } catch {
+    } catch (err: unknown) {
+      if (isAbortError(err)) {
+        return;
+      }
       setErrorMessage('Erro ao comunicar com a IA para calibrar o simulado.');
     } finally {
+      simuladoAbortRef.current = null;
       setGeneratingTopicoId(null);
     }
   };
@@ -414,7 +447,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano, onNavig
                 Nenhuma lacuna crítica pendente
               </div>
               <p className="text-[11px] text-zinc-500 print:text-zinc-600">
-                Seu aproveitamento está equilibrado! Realize novos simulados para mapear novos pontos a aprimorar.
+                Seu aproveitamento está equilibrado ou você ainda não possui questões resolvidas para mapear deficiências. Realize simulados para diagnosticar seu rendimento!
               </p>
               <button
                 type="button"
@@ -473,14 +506,24 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano, onNavig
                 </div>
                 <button
                   type="button"
-                  disabled={generatingTopicoId !== null}
-                  onClick={() => handleGerarSimulado(top.topicoId, top.tituloTopico)}
-                  className="w-full py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-60 cursor-pointer print:hidden"
+                  disabled={generatingTopicoId !== null && generatingTopicoId !== top.topicoId}
+                  onClick={() => {
+                    if (generatingTopicoId === top.topicoId) {
+                      handleCancelarSimulado();
+                    } else {
+                      handleGerarSimulado(top.topicoId, top.tituloTopico);
+                    }
+                  }}
+                  className={`w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer print:hidden ${
+                    generatingTopicoId === top.topicoId
+                      ? 'bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:hover:bg-red-900/60 dark:text-red-400 border border-red-200 dark:border-red-800/80 animate-pulse'
+                      : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 disabled:opacity-60 disabled:cursor-not-allowed'
+                  }`}
                 >
                   {generatingTopicoId === top.topicoId ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
-                      <span>Gerando Simulado IA...</span>
+                      <XCircle className="w-3.5 h-3.5 text-red-500" />
+                      <span>Cancelar Geração</span>
                     </>
                   ) : (
                     <>

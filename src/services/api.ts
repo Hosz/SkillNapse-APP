@@ -25,6 +25,24 @@ export function isQuotaExceededError(error: unknown): boolean {
   return false;
 }
 
+export function isAbortError(error: unknown): boolean {
+  if (!error) return false;
+  if (error instanceof DOMException && error.name === 'AbortError') return true;
+  if (error instanceof Error) {
+    const name = error.name.toLowerCase();
+    const msg = error.message.toLowerCase();
+    return (
+      name === 'aborterror' ||
+      name === 'cancelederror' ||
+      msg.includes('aborted') ||
+      msg.includes('aborterror') ||
+      msg.includes('canceled') ||
+      msg.includes('cancelled')
+    );
+  }
+  return false;
+}
+
 export function isTokenExpired(token: string | null, bufferSeconds = 60): boolean {
   if (!token) return true;
   try {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Layers,
   Sparkles,
@@ -7,6 +7,7 @@ import {
   RotateCw,
   CheckCircle2,
   X,
+  XCircle,
   Flame,
   BrainCircuit,
   Loader2,
@@ -21,7 +22,7 @@ import {
 } from 'lucide-react';
 import type { PlanoEstudo, Flashcard, Sm2Rating } from '../../types';
 import { flashcardService, planoService } from '../../services';
-import { isQuotaExceededError } from '../../services/api';
+import { isQuotaExceededError, isAbortError } from '../../services/api';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { useToast } from '../../context/useToast';
 
@@ -300,7 +301,16 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
     const activeList = studyQueue.length > 0 ? studyQueue : cards;
     const cardAtual = activeList[currentIndex];
     if (cardAtual) {
-      flashcardService.revisarCard(cardAtual.id, rating);
+      const repeticoesCalculadas = rating === 'ERRO' ? 0 : (cardAtual.repeticoes || 0) + 1;
+      setCards((prev) => prev.map((c) => (c.id === cardAtual.id ? { ...c, repeticoes: repeticoesCalculadas } : c)));
+      setStudyQueue((prev) => prev.map((c) => (c.id === cardAtual.id ? { ...c, repeticoes: repeticoesCalculadas } : c)));
+
+      flashcardService.revisarCard(cardAtual.id, rating).then((atualizado) => {
+        if (atualizado) {
+          setCards((prev) => prev.map((c) => (c.id === atualizado.id ? atualizado : c)));
+          setStudyQueue((prev) => prev.map((c) => (c.id === atualizado.id ? atualizado : c)));
+        }
+      });
     }
 
     if (currentIndex + 1 < activeList.length) {
@@ -313,6 +323,33 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
     }
   };
 
+  const flashcardAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (flashcardAbortRef.current) {
+        flashcardAbortRef.current.abort();
+        flashcardAbortRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleCancelarGeracao = () => {
+    if (flashcardAbortRef.current) {
+      flashcardAbortRef.current.abort();
+      flashcardAbortRef.current = null;
+      toast.info('Geração de flashcards cancelada.');
+    }
+    setIsGenerating(false);
+  };
+
+  const fecharModalIaOuCancelar = () => {
+    if (isGenerating) {
+      handleCancelarGeracao();
+    }
+    setIsIaModalOpen(false);
+  };
+
   // Geração com IA com enriquecimento de escopo
   const handleGerarIa = async () => {
     if (!selectedPlanoId) {
@@ -320,6 +357,8 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
       return;
     }
 
+    const controller = new AbortController();
+    flashcardAbortRef.current = controller;
     setIsGenerating(true);
     try {
       const materiaObj = materiasDisponiveis.find((m) => m.id === selectedMateriaId);
@@ -335,7 +374,7 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
         subtopico: filterSubtopico ? (subtopicoObj?.titulo || selectedSubtopico) : undefined,
         subtopicoId: filterSubtopico ? selectedSubtopico : undefined,
         quantidade: quantidadeCards,
-      });
+      }, controller.signal);
 
       if (novos && novos.length > 0) {
         setCards((prev) => [...novos, ...prev]);
@@ -343,11 +382,15 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
         toast.success(`${novos.length} flashcards gerados com sucesso pela IA e organizados no escopo selecionado!`);
       }
     } catch (err: unknown) {
+      if (isAbortError(err)) {
+        return;
+      }
       if (isQuotaExceededError(err)) {
         return;
       }
       toast.error('Falha ao gerar flashcards via IA. Tente novamente.');
     } finally {
+      flashcardAbortRef.current = null;
       setIsGenerating(false);
     }
   };
@@ -984,8 +1027,8 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setIsIaModalOpen(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                onClick={fecharModalIaOuCancelar}
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1187,19 +1230,25 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
             <div className="flex items-center justify-end gap-2 pt-3 border-t-2 border-zinc-200 dark:border-zinc-800">
               <button
                 type="button"
-                onClick={() => setIsIaModalOpen(false)}
+                onClick={fecharModalIaOuCancelar}
                 className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="button"
-                disabled={isGenerating}
-                onClick={handleGerarIa}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 cursor-pointer"
+                onClick={isGenerating ? handleCancelarGeracao : handleGerarIa}
+                className={
+                  isGenerating
+                    ? 'px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-red-600/20 cursor-pointer animate-pulse'
+                    : 'px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 cursor-pointer'
+                }
               >
                 {isGenerating ? (
-                  <span>Sintetizando Flashcards...</span>
+                  <>
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>Cancelar Geração</span>
+                  </>
                 ) : (
                   <>
                     <Sparkles className="w-3.5 h-3.5" />

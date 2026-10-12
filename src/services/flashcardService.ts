@@ -227,28 +227,33 @@ export const flashcardService = {
     }
   },
 
-  async revisarCard(cardId: string, rating: Sm2Rating): Promise<boolean> {
+  async revisarCard(cardId: string, rating: Sm2Rating): Promise<Flashcard | null> {
     try {
-      const qualidadeMap: Record<Sm2Rating, number> = {
-        ERRO: 0,
-        DIFICIL: 2,
-        BOM: 4,
-        FACIL: 5,
-      };
-
-      await ApiService.request(`/flashcards/${cardId}/revisar`, {
+      const res = await ApiService.request<Flashcard>(`/flashcards/${cardId}/revisar`, {
         method: 'POST',
-        body: JSON.stringify({ qualidade: qualidadeMap[rating] ?? 4 }),
+        body: JSON.stringify({
+          classificacao: rating,
+          tempoRespostaSegundos: 5,
+        }),
       });
-      return true;
-    } catch {
-      return true;
+      if (res) {
+        const metas = getStoredMetadata();
+        return {
+          ...res,
+          ...(metas[res.id] || {}),
+        };
+      }
+      return null;
+    } catch (err) {
+      console.error('Erro ao registrar revisão de flashcard:', err);
+      return null;
     }
   },
 
-  async gerarFlashcardsIa(payload: GerarFlashcardsIaPayload): Promise<Flashcard[]> {
+  async gerarFlashcardsIa(payload: GerarFlashcardsIaPayload, signal?: AbortSignal): Promise<Flashcard[]> {
     const res = await ApiService.request<Flashcard[]>('/flashcards/ia/gerar', {
       method: 'POST',
+      signal,
       body: JSON.stringify({
         planoId: payload.planoId,
         materiaId: payload.materiaId,

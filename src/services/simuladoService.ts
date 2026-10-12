@@ -55,7 +55,7 @@ export const simuladoService = {
     }
   },
 
-  async gerarSimuladoAdaptativo(payload: GerarSimuladoPayload): Promise<SimuladoDetalhe> {
+  async gerarSimuladoAdaptativo(payload: GerarSimuladoPayload, signal?: AbortSignal): Promise<SimuladoDetalhe> {
     const isUUID = (val?: string): boolean =>
       !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
 
@@ -63,6 +63,7 @@ export const simuladoService = {
 
     return await ApiService.request<SimuladoDetalhe>('/simulados/adaptativo/gerar', {
       method: 'POST',
+      signal,
       body: JSON.stringify({
         planoEstudoId: payload.planoEstudoId,
         quantidadeQuestoes: Math.max(3, Math.min(15, payload.quantidadeQuestoes || 10)),

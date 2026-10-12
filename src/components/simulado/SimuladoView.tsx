@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Award,
   Sparkles,
@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ChevronLeft,
   X,
+  XCircle,
   Plus,
   Loader2,
   Trash2,
@@ -16,7 +17,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { simuladoService, questaoService, planoService } from '../../services';
-import { isQuotaExceededError } from '../../services/api';
+import { isQuotaExceededError, isAbortError } from '../../services/api';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { useToast } from '../../context/useToast';
 import type { SimuladoResumo, SimuladoDetalhe } from '../../services/simuladoService';
@@ -385,7 +386,36 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
     return () => clearInterval(interval);
   }, [activeSimulado, examFinished]);
 
+  const simuladoAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (simuladoAbortRef.current) {
+        simuladoAbortRef.current.abort();
+        simuladoAbortRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleCancelarGeracao = () => {
+    if (simuladoAbortRef.current) {
+      simuladoAbortRef.current.abort();
+      simuladoAbortRef.current = null;
+      toast.info('Geração de simulado cancelada.');
+    }
+    setGenerating(false);
+  };
+
+  const fecharModalOuCancelar = () => {
+    if (generating) {
+      handleCancelarGeracao();
+    }
+    setIsModalOpen(false);
+  };
+
   const handleGerarSimulado = async () => {
+    const controller = new AbortController();
+    simuladoAbortRef.current = controller;
     setGenerating(true);
     try {
       let targetTopicoId: string | undefined = undefined;
@@ -431,7 +461,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
         bancaAlvo: bancaFinal,
         topicoIds: topicosParaEnvio.length > 0 ? topicosParaEnvio : undefined,
         titulo: tituloDesejado,
-      });
+      }, controller.signal);
 
       if (novo && novo.questoes && novo.questoes.length > 0) {
         salvarSimuladoLocal(novo);
@@ -446,11 +476,15 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
         throw new Error('Nenhuma questão gerada.');
       }
     } catch (err: unknown) {
+      if (isAbortError(err)) {
+        return;
+      }
       if (isQuotaExceededError(err)) {
         return;
       }
       toast.error('Erro ao gerar simulado com a IA. Tente novamente ou ajuste os filtros.');
     } finally {
+      simuladoAbortRef.current = null;
       setGenerating(false);
     }
   };
@@ -1196,8 +1230,8 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                onClick={fecharModalOuCancelar}
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1494,19 +1528,25 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
                 <div className="flex items-center justify-end gap-2 pt-2 border-t-2 border-zinc-200 dark:border-zinc-800">
                   <button
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    onClick={fecharModalOuCancelar}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="button"
-                    disabled={generating}
-                    onClick={handleGerarSimulado}
-                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-50"
+                    onClick={generating ? handleCancelarGeracao : handleGerarSimulado}
+                    className={
+                      generating
+                        ? 'px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-red-600/20 cursor-pointer animate-pulse'
+                        : 'px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 cursor-pointer'
+                    }
                   >
                     {generating ? (
-                      <span>Sintetizando Prova...</span>
+                      <>
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>Cancelar Geração</span>
+                      </>
                     ) : (
                       <>
                         <Sparkles className="w-3.5 h-3.5" />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   RotateCw,
   Sparkles,
@@ -6,9 +6,11 @@ import {
   Layers,
   Loader2,
   AlertCircle,
+  XCircle,
 } from 'lucide-react';
 import type { Topico, Materia, Flashcard, Sm2Rating } from '../../types';
 import { flashcardService } from '../../services';
+import { isAbortError } from '../../services/api';
 
 interface FlashcardsTabProps {
   topic: Topico;
@@ -51,7 +53,11 @@ export const FlashcardsTab: React.FC<FlashcardsTabProps> = ({
 
   const handleRateCard = (rating: Sm2Rating) => {
     if (currentCard) {
-      flashcardService.revisarCard(currentCard.id, rating);
+      flashcardService.revisarCard(currentCard.id, rating).then((atualizado) => {
+        if (atualizado) {
+          setCards((prev) => prev.map((c) => (c.id === atualizado.id ? atualizado : c)));
+        }
+      });
     }
 
     setCards((prev) =>
@@ -59,7 +65,7 @@ export const FlashcardsTab: React.FC<FlashcardsTabProps> = ({
         i === currentIndex
           ? {
               ...c,
-              repeticoes: rating === 'ERRO' ? 0 : c.repeticoes + 1,
+              repeticoes: rating === 'ERRO' ? 0 : (c.repeticoes || 0) + 1,
             }
           : c
       )
@@ -77,6 +83,25 @@ export const FlashcardsTab: React.FC<FlashcardsTabProps> = ({
     setCompletedCount(0);
   };
 
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleCancelarGeracao = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    setIsGenerating(false);
+  };
+
   const handleGerarFlashcardsIa = async () => {
     const effectivePlanoId = planoId || materia?.planoId;
     if (!effectivePlanoId) {
@@ -84,6 +109,8 @@ export const FlashcardsTab: React.FC<FlashcardsTabProps> = ({
       return;
     }
 
+    const controller = new AbortController();
+    abortRef.current = controller;
     setIsGenerating(true);
     setGenerationError(null);
     setGenerationSuccess(null);
@@ -98,7 +125,7 @@ export const FlashcardsTab: React.FC<FlashcardsTabProps> = ({
         subtopico: topic.topicoPaiId ? topic.titulo : undefined,
         subtopicoId: topic.topicoPaiId ? topic.id : undefined,
         quantidade: 5,
-      });
+      }, controller.signal);
 
       if (novosCards && novosCards.length > 0) {
         setCards(novosCards);
@@ -119,9 +146,13 @@ export const FlashcardsTab: React.FC<FlashcardsTabProps> = ({
         }
       }
     } catch (err) {
+      if (isAbortError(err)) {
+        return;
+      }
       console.error('Erro ao gerar flashcards via IA:', err);
       setGenerationError('Falha ao comunicar com o gerador de IA para calibrar flashcards.');
     } finally {
+      abortRef.current = null;
       setIsGenerating(false);
     }
   };
@@ -177,12 +208,24 @@ export const FlashcardsTab: React.FC<FlashcardsTabProps> = ({
 
         <button
           type="button"
-          onClick={handleGerarFlashcardsIa}
-          disabled={isGenerating}
-          className="w-full max-w-xs py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer disabled:opacity-50"
+          onClick={isGenerating ? handleCancelarGeracao : handleGerarFlashcardsIa}
+          className={
+            isGenerating
+              ? 'w-full max-w-xs py-3 px-4 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 transition-all cursor-pointer animate-pulse'
+              : 'w-full max-w-xs py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer'
+          }
         >
-          <Sparkles className="w-4 h-4 fill-white/20" />
-          <span>Gerar Flashcards com IA para este Tópico</span>
+          {isGenerating ? (
+            <>
+              <XCircle className="w-4 h-4" />
+              <span>Cancelar Geração</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4 fill-white/20" />
+              <span>Gerar Flashcards com IA para este Tópico</span>
+            </>
+          )}
         </button>
 
         <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">
@@ -210,13 +253,16 @@ export const FlashcardsTab: React.FC<FlashcardsTabProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleGerarFlashcardsIa}
-            disabled={isGenerating}
-            className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer"
-            title="Gerar mais flashcards com IA para este tópico"
+            onClick={isGenerating ? handleCancelarGeracao : handleGerarFlashcardsIa}
+            className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
+              isGenerating
+                ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/80 hover:bg-red-100 dark:hover:bg-red-900/60 animate-pulse'
+                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+            }`}
+            title={isGenerating ? 'Cancelar geração com IA' : 'Gerar mais flashcards com IA para este tópico'}
           >
             {isGenerating ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <XCircle className="w-3.5 h-3.5" />
             ) : (
               <Sparkles className="w-3.5 h-3.5" />
             )}
@@ -320,16 +366,24 @@ export const FlashcardsTab: React.FC<FlashcardsTabProps> = ({
             </button>
             <button
               type="button"
-              onClick={handleGerarFlashcardsIa}
-              disabled={isGenerating}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+              onClick={isGenerating ? handleCancelarGeracao : handleGerarFlashcardsIa}
+              className={`px-4 py-2 rounded-xl text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
+                isGenerating
+                  ? 'bg-red-600 hover:bg-red-500 shadow-red-600/20 animate-pulse'
+                  : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+              }`}
             >
               {isGenerating ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <>
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Cancelar Geração</span>
+                </>
               ) : (
-                <Sparkles className="w-3.5 h-3.5" />
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Gerar Mais Cards (IA)</span>
+                </>
               )}
-              <span>Gerar Mais Cards (IA)</span>
             </button>
           </div>
         </div>
