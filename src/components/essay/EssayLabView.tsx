@@ -25,6 +25,7 @@ import {
 import { redacaoService } from '../../services';
 import { isQuotaExceededError } from '../../services/api';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { useToast } from '../../context/useToast';
 import type { SubmissaoRedacaoResumo } from '../../services/redacaoService';
 import type { TemaRedacao } from '../../types';
 
@@ -44,6 +45,7 @@ interface EvaluationResult {
 }
 
 export const EssayLabView: React.FC = () => {
+  const toast = useToast();
   const [temas, setTemas] = useState<TemaRedacao[]>([]);
   const [selectedTema, setSelectedTema] = useState<TemaRedacao | null>(null);
   const [isGeneratingTema, setIsGeneratingTema] = useState(false);
@@ -168,7 +170,7 @@ export const EssayLabView: React.FC = () => {
       if (isQuotaExceededError(err)) {
         return;
       }
-      alert('Não foi possível gerar a proposta com a IA. Certifique-se de que o backend está online.');
+      toast.error('Não foi possível gerar a proposta com a IA. Certifique-se de que o backend está online.');
     } finally {
       setIsGeneratingTema(false);
     }
@@ -192,11 +194,11 @@ export const EssayLabView: React.FC = () => {
   const handleSaveEditTema = async () => {
     if (!selectedTema) return;
     if (!editTitulo.trim()) {
-      alert('Por favor, informe o título da proposta de redação.');
+      toast.warning('Por favor, informe o título da proposta de redação.');
       return;
     }
     if (!editEixoTematico.trim()) {
-      alert('Por favor, informe o eixo temático da proposta.');
+      toast.warning('Por favor, informe o eixo temático da proposta.');
       return;
     }
 
@@ -221,7 +223,7 @@ export const EssayLabView: React.FC = () => {
       setTimeout(() => setSuccessToast(null), 4500);
     } catch (err) {
       console.error('Erro ao salvar edições do tema:', err);
-      alert('Erro ao salvar as edições do tema. Tente novamente.');
+      toast.error('Erro ao salvar as edições do tema. Tente novamente.');
     } finally {
       setIsSavingEditTema(false);
     }
@@ -258,7 +260,7 @@ export const EssayLabView: React.FC = () => {
       setTemaParaExcluir(null);
     } catch (err) {
       console.error('Erro ao apagar tema:', err);
-      alert('Não foi possível excluir o tema. Tente novamente.');
+      toast.error('Não foi possível excluir o tema. Tente novamente.');
     } finally {
       setIsExcluindoTema(false);
     }
@@ -286,14 +288,14 @@ export const EssayLabView: React.FC = () => {
         setEvaluationResult(result);
         carregarHistorico();
       } else {
-        alert('A correção não pôde ser concluída pela IA. Tente novamente.');
+        toast.error('A correção não pôde ser concluída pela IA. Tente novamente.');
       }
     } catch (err: unknown) {
       console.error('Erro ao submeter redação para IA:', err);
       if (isQuotaExceededError(err)) {
         return;
       }
-      alert('Ocorreu um erro ao processar a correção analítica por IA.');
+      toast.error('Ocorreu um erro ao processar a correção analítica por IA.');
     } finally {
       setIsEvaluating(false);
     }

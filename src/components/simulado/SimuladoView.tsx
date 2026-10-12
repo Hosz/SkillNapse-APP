@@ -18,6 +18,7 @@ import {
 import { simuladoService, questaoService, planoService } from '../../services';
 import { isQuotaExceededError } from '../../services/api';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { useToast } from '../../context/useToast';
 import type { SimuladoResumo, SimuladoDetalhe } from '../../services/simuladoService';
 import type { PlanoEstudo, NivelProficiencia } from '../../types';
 
@@ -133,6 +134,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
   initialFilter,
   initialSimuladoId,
 }) => {
+  const toast = useToast();
   const [simulados, setSimulados] = useState<SimuladoResumo[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(!!initialFilter && !initialSimuladoId);
@@ -257,8 +259,9 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
 
     // 3. Validação defensiva para evitar qualquer tela branca
     if (!detalhe || !detalhe.questoes || detalhe.questoes.length === 0) {
-      alert(
-        'As questões deste simulado não puderam ser recuperadas no momento. Você pode gerar um novo simulado adaptativo a qualquer hora.'
+      toast.error(
+        'As questões deste simulado não puderam ser recuperadas no momento. Você pode gerar um novo simulado adaptativo a qualquer hora.',
+        'Simulado Indisponível'
       );
       return;
     }
@@ -353,12 +356,13 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
           if (ok) {
             removerSimuladoLocal(simuladoId);
             setSimulados((prev) => prev.filter((s) => s.id !== simuladoId));
+            toast.success('Simulado excluído com sucesso.');
           } else {
-            alert('Erro ao excluir simulado. Tente novamente.');
+            toast.error('Erro ao excluir simulado. Tente novamente.');
           }
           setConfirmConfig(null);
         } catch {
-          alert('Erro ao excluir simulado. Tente novamente.');
+          toast.error('Erro ao excluir simulado. Tente novamente.');
         } finally {
           setIsConfirmLoading(false);
         }
@@ -445,7 +449,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
       if (isQuotaExceededError(err)) {
         return;
       }
-      alert('Erro ao gerar simulado com a IA. Tente novamente ou ajuste os filtros.');
+      toast.error('Erro ao gerar simulado com a IA. Tente novamente ou ajuste os filtros.');
     } finally {
       setGenerating(false);
     }
@@ -453,13 +457,13 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
 
   const handleSalvarQuestaoManual = async () => {
     if (!manualEnunciado.trim()) {
-      alert('Por favor, informe o enunciado da questão.');
+      toast.warning('Por favor, informe o enunciado da questão.');
       return;
     }
 
     const vazias = manualAlternativas.filter((a) => !a.texto.trim());
     if (vazias.length > 0) {
-      alert('Por favor, preencha o texto de todas as 5 alternativas (A a E).');
+      toast.warning('Por favor, preencha o texto de todas as 5 alternativas (A a E).');
       return;
     }
 
@@ -478,7 +482,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
         })),
       });
 
-      alert('Questão cadastrada com sucesso no acervo!');
+      toast.success('Questão cadastrada com sucesso no acervo!');
       setManualEnunciado('');
       setManualExplicacao('');
       setManualAlternativas([
@@ -490,7 +494,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
       ]);
       setIsModalOpen(false);
     } catch {
-      alert('Erro ao cadastrar questão manual.');
+      toast.error('Erro ao cadastrar questão manual.');
     } finally {
       setSavingManual(false);
     }

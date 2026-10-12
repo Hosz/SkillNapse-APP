@@ -18,6 +18,7 @@ import type { TreeItemType, TreeItemMode, TreeItemFormData } from './components/
 import { ConfirmModal } from './components/common/ConfirmModal';
 import { AiQuotaExceededModal } from './components/common/AiQuotaExceededModal';
 import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
 import { planoService, sessaoService, gamificacaoService, authService, ApiService } from './services';
 import type { Topico, Materia, PlanoEstudo } from './types';
 
@@ -1101,7 +1102,9 @@ function AppContent() {
 export function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </ThemeProvider>
   );
 }

@@ -23,6 +23,7 @@ import type { PlanoEstudo, Flashcard, Sm2Rating } from '../../types';
 import { flashcardService, planoService } from '../../services';
 import { isQuotaExceededError } from '../../services/api';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { useToast } from '../../context/useToast';
 
 export interface FlashcardFilterInitial {
   planoId?: string;
@@ -45,6 +46,7 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
   planoAtivo,
   initialFilter,
 }) => {
+  const toast = useToast();
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -224,7 +226,7 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
   const handleSaveEdit = async () => {
     if (!editingCard) return;
     if (!editFrente.trim() || !editVerso.trim()) {
-      alert('Informe a pergunta (frente) e a resposta (verso) do cartão.');
+      toast.warning('Informe a pergunta (frente) e a resposta (verso) do cartão.');
       return;
     }
     setIsSavingEdit(true);
@@ -252,7 +254,7 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
       }
       setEditingCard(null);
     } catch {
-      alert('Erro ao atualizar flashcard.');
+      toast.error('Erro ao atualizar flashcard.');
     } finally {
       setIsSavingEdit(false);
     }
@@ -314,7 +316,7 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
   // Geração com IA com enriquecimento de escopo
   const handleGerarIa = async () => {
     if (!selectedPlanoId) {
-      alert('Por favor, selecione um plano de estudos.');
+      toast.warning('Por favor, selecione um plano de estudos.');
       return;
     }
 
@@ -338,13 +340,13 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
       if (novos && novos.length > 0) {
         setCards((prev) => [...novos, ...prev]);
         setIsIaModalOpen(false);
-        alert(`${novos.length} flashcards gerados com sucesso pela IA e organizados no escopo selecionado!`);
+        toast.success(`${novos.length} flashcards gerados com sucesso pela IA e organizados no escopo selecionado!`);
       }
     } catch (err: unknown) {
       if (isQuotaExceededError(err)) {
         return;
       }
-      alert('Falha ao gerar flashcards via IA. Tente novamente.');
+      toast.error('Falha ao gerar flashcards via IA. Tente novamente.');
     } finally {
       setIsGenerating(false);
     }
@@ -353,7 +355,7 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
   // Criação Manual com catalogação de escopo
   const handleCriarManual = async () => {
     if (!manualFrente.trim() || !manualVerso.trim()) {
-      alert('Informe o texto da frente e do verso do flashcard.');
+      toast.warning('Informe o texto da frente e do verso do flashcard.');
       return;
     }
 
@@ -377,7 +379,7 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
       setManualFrente('');
       setManualVerso('');
       setIsManualModalOpen(false);
-      alert('Flashcard criado e catalogado com sucesso!');
+      toast.success('Flashcard criado e catalogado com sucesso!');
     }
   };
 

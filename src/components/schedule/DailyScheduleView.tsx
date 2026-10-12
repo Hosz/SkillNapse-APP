@@ -31,6 +31,7 @@ import type {
 } from '../../types';
 import { cronogramaService, planoService } from '../../services';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { useToast } from '../../context/useToast';
 
 interface GrupoTopico {
   raiz: Topico;
@@ -279,6 +280,7 @@ export const DailyScheduleView: React.FC<DailyScheduleViewProps> = ({
   onStartFlashcards,
   onIrParaGradeSemanal,
 }) => {
+  const toast = useToast();
   const [dataAtual, setDataAtual] = useState<Date>(() => new Date());
   const anoAtual = dataAtual.getFullYear();
   const mesAtual = dataAtual.getMonth();
@@ -499,7 +501,7 @@ export const DailyScheduleView: React.FC<DailyScheduleViewProps> = ({
       await recarregarPopUp(diaSelecionadoPopUp.dataIso);
     } catch (err) {
       console.error('Erro ao cancelar bloco pontualmente:', err);
-      alert('Não foi possível cancelar o bloco pontualmente.');
+      toast.error('Não foi possível cancelar o bloco pontualmente.');
     } finally {
       setIsCancelandoBloco(false);
     }
@@ -625,7 +627,7 @@ export const DailyScheduleView: React.FC<DailyScheduleViewProps> = ({
       await recarregarPopUp(diaSelecionadoPopUp.dataIso);
     } catch (err) {
       console.error('Erro ao remover exceção:', err);
-      alert('Não foi possível remover o ajuste pontual.');
+      toast.error('Não foi possível remover o ajuste pontual.');
     } finally {
       setIsExcluindoExcecao(false);
     }
@@ -641,7 +643,7 @@ export const DailyScheduleView: React.FC<DailyScheduleViewProps> = ({
       await recarregarPopUp(diaSelecionadoPopUp.dataIso);
     } catch (err) {
       console.error('Erro ao resetar dia:', err);
-      alert('Não foi possível resetar a agenda do dia.');
+      toast.error('Não foi possível resetar a agenda do dia.');
     } finally {
       setIsResetandoDia(false);
     }

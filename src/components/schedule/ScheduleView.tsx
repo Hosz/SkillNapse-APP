@@ -24,6 +24,7 @@ import type { BlocoCronograma, DiaSemana, TipoBloco, PlanoEstudo, Topico } from 
 import { cronogramaService, planoService } from '../../services';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { DailyScheduleView } from './DailyScheduleView';
+import { useToast } from '../../context/useToast';
 import type {
   EstrategiaAgendamento,
   SugestaoAutoAgendamentoResponse,
@@ -134,6 +135,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
   onStartSimulado,
   onStartFlashcards,
 }) => {
+  const toast = useToast();
   const [modoVisao, setModoVisao] = useState<'diaria' | 'semanal'>('diaria');
   const [selectedDay, setSelectedDay] = useState<DiaSemana>('SEGUNDA');
   const [cronograma, setCronograma] = useState<BlocoCronograma[]>([]);
@@ -506,7 +508,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
       setNovoTopicoId('');
       showToast('Bloco adicionado com sucesso!');
     } catch {
-      alert('Não foi possível adicionar o bloco. Verifique os dados informados.');
+      toast.error('Não foi possível adicionar o bloco. Verifique os dados informados.');
     } finally {
       setSubmittingManual(false);
     }
