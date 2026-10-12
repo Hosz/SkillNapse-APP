@@ -18,6 +18,7 @@ interface SubjectNodeProps {
   materia: Materia;
   selectedTopicId: string | null;
   onSelectTopic: (topic: Topico, materia: Materia) => void;
+  onOpenWorkpad?: (topic: Topico, materia: Materia, tab?: 'pomodoro' | 'canvas' | 'questoes' | 'flashcards') => void;
   onAddTopic?: (materiaId: string) => void;
   onEditMateria?: (materia: Materia) => void;
   onDeleteMateria?: (materiaId: string) => void;
@@ -45,6 +46,7 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
   materia,
   selectedTopicId,
   onSelectTopic,
+  onOpenWorkpad,
   onAddTopic,
   onEditMateria,
   onDeleteMateria,
@@ -109,12 +111,12 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
             style={{ backgroundColor: materia.corHex }}
           />
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <h3 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-tight break-words">
                 {materia.nome}
               </h3>
-              <div className="flex items-center gap-1.5 font-mono text-[10px]">
+              <div className="flex items-center gap-1.5 font-mono text-[9px] sm:text-[10px] flex-wrap">
                 <span className="text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-800/80 px-2 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700/60 font-medium">
                   {totalPrincipais} {totalPrincipais === 1 ? 'tópico' : 'tópicos'}
                 </span>
@@ -235,6 +237,7 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
                   parentTopicTitle={topico.titulo}
                   selectedTopicId={selectedTopicId}
                   onSelectTopic={(t) => onSelectTopic(t, materia)}
+                  onOpenWorkpad={(t, tab) => onOpenWorkpad && onOpenWorkpad(t, materia, tab)}
                   onAddSubtopic={(parentId) => onAddSubtopic && onAddSubtopic(parentId, materia.id)}
                   onEditTopic={onEditTopic}
                   onDeleteTopic={onDeleteTopic}

@@ -43,15 +43,15 @@ export const CanvasTab: React.FC<CanvasTabProps> = ({ topic }) => {
   };
 
   // Helper para obter coordenadas reais escalonadas com o buffer do canvas
-  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getCoordinates = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
     };
   };
 
@@ -80,27 +80,35 @@ export const CanvasTab: React.FC<CanvasTabProps> = ({ topic }) => {
     }
   }, [activeMode]);
 
-  // Canvas drawing handlers
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Canvas drawing handlers com suporte universal a Pointer e Touch
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const { x, y } = getCoordinates(e);
+    if ('setPointerCapture' in e.currentTarget && 'pointerId' in e) {
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Ignora
+      }
+    }
+
+    const { x, y } = getCoordinates(e.clientX, e.clientY);
     ctx.beginPath();
     ctx.moveTo(x, y);
     setIsDrawing(true);
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.PointerEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const { x, y } = getCoordinates(e);
+    const { x, y } = getCoordinates(e.clientX, e.clientY);
     ctx.lineTo(x, y);
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = strokeWidth;
@@ -109,8 +117,17 @@ export const CanvasTab: React.FC<CanvasTabProps> = ({ topic }) => {
     ctx.stroke();
   };
 
-  const stopDrawing = () => {
+  const stopDrawing = (e?: React.PointerEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
+    if (e && 'releasePointerCapture' in e.currentTarget && 'pointerId' in e) {
+      try {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        // Ignora
+      }
+    }
     setIsDrawing(false);
     setSavedStatus('Salvando...');
     setTimeout(() => setSavedStatus('Salvo automaticamente'), 500);
@@ -234,11 +251,16 @@ export const CanvasTab: React.FC<CanvasTabProps> = ({ topic }) => {
               ref={canvasRef}
               width={700}
               height={550}
+              onPointerDown={startDrawing}
+              onPointerMove={draw}
+              onPointerUp={stopDrawing}
+              onPointerCancel={stopDrawing}
               onMouseDown={startDrawing}
               onMouseMove={draw}
               onMouseUp={stopDrawing}
               onMouseLeave={stopDrawing}
-              className="w-full h-full block"
+              className="w-full h-full block touch-none select-none"
+              style={{ touchAction: 'none' }}
             />
           </div>
         ) : (

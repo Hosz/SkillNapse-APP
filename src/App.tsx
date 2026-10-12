@@ -5,6 +5,7 @@ import type { NavView } from './components/layout/Sidebar';
 import { StudyTree } from './components/study-tree/StudyTree';
 import { PlanosListView } from './components/study-tree/PlanosListView';
 import { Workpad } from './components/workpad/Workpad';
+import type { TicketType } from './components/workpad/Workpad';
 import { ScheduleView } from './components/schedule/ScheduleView';
 import { SimuladoView } from './components/simulado/SimuladoView';
 import { FlashcardsView } from './components/flashcards/FlashcardsView';
@@ -87,6 +88,7 @@ function AppContent() {
   // Selected topic and subject for the Knowledge Tree & Workpad split-view
   const [selectedTopic, setSelectedTopic] = useState<Topico | null>(null);
   const [selectedMateria, setSelectedMateria] = useState<Materia | null>(null);
+  const [activeWorkpadTicket, setActiveWorkpadTicket] = useState<TicketType | null>(null);
 
   // Gamification state
   const [streakCount, setStreakCount] = useState(0);
@@ -158,21 +160,14 @@ function AppContent() {
             materias: fetchedPlano.materias || [],
           };
           setPlano(planoNormalizado);
-          if (
-            planoNormalizado.materias.length > 0 &&
-            planoNormalizado.materias[0].topicos &&
-            planoNormalizado.materias[0].topicos.length > 0
-          ) {
-            setSelectedMateria(planoNormalizado.materias[0]);
-            setSelectedTopic(planoNormalizado.materias[0].topicos[0]);
-          } else {
-            setSelectedMateria(null);
-            setSelectedTopic(null);
-          }
+          setSelectedMateria(null);
+          setSelectedTopic(null);
+          setActiveWorkpadTicket(null);
         } else {
           setPlano(null);
           setSelectedMateria(null);
           setSelectedTopic(null);
+          setActiveWorkpadTicket(null);
         }
       })
       .catch((err) => {
@@ -243,6 +238,7 @@ function AppContent() {
       setPlanosLista([]);
       setSelectedTopic(null);
       setSelectedMateria(null);
+      setActiveWorkpadTicket(null);
     };
 
     window.addEventListener('skillnapse:unauthorized', handleUnauthorized);
@@ -318,6 +314,7 @@ function AppContent() {
   const handleClearSelection = () => {
     setSelectedTopic(null);
     setSelectedMateria(null);
+    setActiveWorkpadTicket(null);
   };
 
   const handleSelectTopic = (topic: Topico | null, materia?: Materia | null) => {
@@ -327,6 +324,19 @@ function AppContent() {
     }
     setSelectedTopic(topic);
     setSelectedMateria(materia || null);
+    if (currentView !== 'tree') {
+      setCurrentView('tree');
+    }
+  };
+
+  const handleOpenWorkpad = (
+    topic: Topico,
+    materia?: Materia | null,
+    tab: TicketType = 'pomodoro'
+  ) => {
+    setSelectedTopic(topic);
+    setSelectedMateria(materia || null);
+    setActiveWorkpadTicket(tab);
     if (currentView !== 'tree') {
       setCurrentView('tree');
     }
@@ -447,6 +457,7 @@ function AppContent() {
             setIsViewingTreeDetail(false);
             setSelectedTopic(null);
             setSelectedMateria(null);
+            setActiveWorkpadTicket(null);
           }
           setConfirmModalConfig(null);
         } catch (err) {
@@ -505,6 +516,7 @@ function AppContent() {
           if (selectedMateria?.id === materiaId) {
             setSelectedTopic(null);
             setSelectedMateria(null);
+            setActiveWorkpadTicket(null);
           }
           setConfirmModalConfig(null);
         } catch (err) {
@@ -785,6 +797,7 @@ function AppContent() {
 
           if (selectedTopic?.id === topicId) {
             setSelectedTopic(null);
+            setActiveWorkpadTicket(null);
           }
           setConfirmModalConfig(null);
         } catch (err) {
@@ -859,6 +872,7 @@ function AppContent() {
       if (found) {
         setSelectedMateria(found.materia);
         setSelectedTopic(found.topico);
+        setActiveWorkpadTicket('pomodoro');
         setIsViewingTreeDetail(true);
         setCurrentView('tree');
         return;
@@ -873,6 +887,7 @@ function AppContent() {
         setPlano(p);
         setSelectedMateria(found.materia);
         setSelectedTopic(found.topico);
+        setActiveWorkpadTicket('pomodoro');
         setIsViewingTreeDetail(true);
         setCurrentView('tree');
         return;
@@ -890,6 +905,7 @@ function AppContent() {
               setPlano(completo);
               setSelectedMateria(found.materia);
               setSelectedTopic(found.topico);
+              setActiveWorkpadTicket('pomodoro');
               setIsViewingTreeDetail(true);
               setCurrentView('tree');
               return;
@@ -1002,22 +1018,16 @@ function AppContent() {
               onSelectPlano={async (p) => {
                 setPlano(p);
                 setIsViewingTreeDetail(true);
+                setSelectedMateria(null);
+                setSelectedTopic(null);
+                setActiveWorkpadTicket(null);
                 try {
                   const completo = await planoService.obterPlanoPorId(p.id);
                   if (completo) {
                     setPlano(completo);
-                    if (
-                      completo.materias &&
-                      completo.materias.length > 0 &&
-                      completo.materias[0].topicos &&
-                      completo.materias[0].topicos.length > 0
-                    ) {
-                      setSelectedMateria(completo.materias[0]);
-                      setSelectedTopic(completo.materias[0].topicos[0]);
-                    } else {
-                      setSelectedMateria(null);
-                      setSelectedTopic(null);
-                    }
+                    setSelectedMateria(null);
+                    setSelectedTopic(null);
+                    setActiveWorkpadTicket(null);
                   }
                 } catch (err) {
                   console.error('Erro ao carregar detalhes do plano:', err);
@@ -1036,6 +1046,7 @@ function AppContent() {
                 plano={plano}
                 selectedTopicId={selectedTopic?.id || null}
                 onSelectTopic={handleSelectTopic}
+                onOpenWorkpad={handleOpenWorkpad}
                 onBackToList={() => setIsViewingTreeDetail(false)}
                 onEditPlano={handleEditPlano}
                 onDeletePlano={handleDeletePlano}
@@ -1055,7 +1066,8 @@ function AppContent() {
                 topic={selectedTopic}
                 materia={selectedMateria || undefined}
                 planoId={plano?.id || planosLista[0]?.id}
-                initialTab="pomodoro"
+                activeTicket={activeWorkpadTicket}
+                onActiveTicketChange={setActiveWorkpadTicket}
                 streakCount={streakCount}
                 onClose={handleClearSelection}
                 onSessionComplete={handleSessionComplete}

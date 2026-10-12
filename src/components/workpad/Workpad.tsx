@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Timer,
   FileSignature,
@@ -22,7 +22,9 @@ interface WorkpadProps {
   topic: Topico | null;
   materia?: Materia;
   planoId?: string;
-  initialTab?: TicketType;
+  initialTab?: TicketType | null;
+  activeTicket?: TicketType | null;
+  onActiveTicketChange?: (ticket: TicketType | null) => void;
   streakCount?: number;
   onClose?: () => void;
   onSessionComplete: (seconds: number) => void;
@@ -39,7 +41,9 @@ export const Workpad: React.FC<WorkpadProps> = ({
   topic,
   materia,
   planoId,
-  initialTab = 'pomodoro',
+  initialTab = null,
+  activeTicket: controlledActiveTicket,
+  onActiveTicketChange,
   streakCount = 0,
   onClose,
   onSessionComplete,
@@ -47,15 +51,15 @@ export const Workpad: React.FC<WorkpadProps> = ({
   onStartSimulado,
 }) => {
   // State: which ticket is currently pulled/open (null means collapsed)
-  const [activeTicket, setActiveTicket] = useState<TicketType | null>(initialTab);
+  const [internalActiveTicket, setInternalActiveTicket] = useState<TicketType | null>(initialTab ?? null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Se um novo tópico for selecionado e o fichário estiver recolhido, abre com a aba inicial
-  useEffect(() => {
-    if (topic && !activeTicket) {
-      setActiveTicket(initialTab);
-    }
-  }, [topic?.id]);
+  const activeTicket = controlledActiveTicket !== undefined ? controlledActiveTicket : internalActiveTicket;
+
+  const setActiveTicket = (ticket: TicketType | null) => {
+    setInternalActiveTicket(ticket);
+    onActiveTicketChange?.(ticket);
+  };
 
   const fallbackTopic: Topico = {
     id: 'geral',

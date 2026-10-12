@@ -18,6 +18,7 @@ interface StudyTreeProps {
   plano: PlanoEstudo;
   selectedTopicId: string | null;
   onSelectTopic: (topic: Topico, materia: Materia) => void;
+  onOpenWorkpad?: (topic: Topico, materia: Materia, tab?: 'pomodoro' | 'canvas' | 'questoes' | 'flashcards') => void;
   onBackToList?: () => void;
   onEditPlano?: (plano: PlanoEstudo) => void;
   onDeletePlano?: (planoId: string) => void;
@@ -49,6 +50,7 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
   plano,
   selectedTopicId,
   onSelectTopic,
+  onOpenWorkpad,
   onBackToList,
   onEditPlano,
   onDeletePlano,
@@ -284,6 +286,7 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
               materia={materia}
               selectedTopicId={selectedTopicId}
               onSelectTopic={onSelectTopic}
+              onOpenWorkpad={onOpenWorkpad}
               onAddTopic={onAddTopic}
               onEditMateria={onEditMateria}
               onDeleteMateria={onDeleteMateria}

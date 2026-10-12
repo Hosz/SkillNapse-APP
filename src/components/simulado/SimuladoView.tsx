@@ -677,8 +677,10 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
     return (
       <div className="flex-1 h-full flex flex-col bg-slate-50 dark:bg-zinc-950 overflow-hidden text-zinc-900 dark:text-zinc-100 font-sans select-none">
         {/* Top Navigation Bar do Simulado */}
-        <div className="h-16 px-6 border-b-2 border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-950/80 backdrop-blur-md flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-4">
+        {/* Top Navigation Bar do Simulado (2 linhas compactas no mobile, 1 linha no desktop) */}
+        <div className="border-b-2 border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-950/80 backdrop-blur-md p-3 sm:px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between shrink-0 gap-2 sm:gap-4 sm:h-16">
+          {/* Linha Superior (Mobile) / Lado Esquerdo (Desktop) */}
+          <div className="flex items-center justify-between sm:justify-start gap-2.5 sm:gap-4 min-w-0 flex-1">
             <button
               onClick={() => {
                 setConfirmConfig({
@@ -694,26 +696,45 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
                   },
                 });
               }}
-              className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer shrink-0"
               title="Sair do Simulado"
             >
               <X className="w-4 h-4" />
             </button>
-            <div>
-              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                <span>{activeSimulado.titulo}</span>
-                <span className="text-[10px] font-mono bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 px-2 py-0.5 rounded-full font-semibold">
+
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 min-w-0">
+                <span className="truncate max-w-[200px] sm:max-w-md" title={activeSimulado.titulo}>
+                  {activeSimulado.titulo}
+                </span>
+                <span className="hidden sm:inline-flex text-[10px] font-mono bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 px-1.5 py-0.2 rounded-full font-semibold shrink-0">
                   IA Adaptativa
                 </span>
               </h2>
-              <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+              <div className="hidden sm:block text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
                 Questão {currentQuestionIndex + 1} de {totalQ}
               </div>
             </div>
+
+            {/* Timer no Mobile (fica no topo direito) */}
+            <div className="flex sm:hidden items-center gap-1.5 px-2 py-1 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[11px] font-mono text-zinc-700 dark:text-zinc-300 shrink-0 font-bold">
+              <Clock className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+              <span>{formatTimer(timerSeconds)}</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-zinc-700 dark:text-zinc-300">
+          {/* Linha Inferior (Mobile) / Lado Direito (Desktop) */}
+          <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-4 shrink-0 border-t sm:border-t-0 border-zinc-100 dark:border-zinc-800/60 pt-2 sm:pt-0">
+            {/* Indicador de Questão no Mobile */}
+            <div className="flex sm:hidden items-center gap-1.5 text-xs font-mono text-zinc-600 dark:text-zinc-400 font-semibold">
+              <span>Questão {currentQuestionIndex + 1} de {totalQ}</span>
+              <span className="text-[9px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                IA
+              </span>
+            </div>
+
+            {/* Timer no Desktop */}
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-zinc-700 dark:text-zinc-300">
               <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>{formatTimer(timerSeconds)}</span>
             </div>
@@ -721,15 +742,16 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
             {!examFinished ? (
               <button
                 onClick={handleConcluirExame}
-                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm shadow-emerald-600/20"
+                className="px-3.5 py-1.5 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm shadow-emerald-600/20 cursor-pointer shrink-0"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Finalizar Simulado</span>
+                <span>Finalizar</span>
+                <span className="hidden sm:inline">Simulado</span>
               </button>
             ) : (
               <button
                 onClick={() => setActiveSimulado(null)}
-                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all"
+                className="px-3.5 py-1.5 sm:px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all cursor-pointer shrink-0"
               >
                 Voltar à Lista
               </button>
