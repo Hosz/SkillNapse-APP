@@ -166,17 +166,17 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
   const totalTopicMinutes = Math.floor(((topic.tempoLiquidoSegundos || 0) % 3600) / 60);
 
   return (
-    <div className="p-5 flex flex-col h-full justify-between select-none font-sans">
+    <div className="p-5 flex flex-col h-full justify-between select-none font-sans bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
       <div className="space-y-6">
         {/* Mode Selector & Config Button */}
         <div className="flex items-center gap-2">
-          <div className="flex-1 flex bg-zinc-900 p-1 rounded-xl border border-zinc-800 text-xs font-medium">
+          <div className="flex-1 flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-medium">
             <button
               onClick={() => handleModeChange(customFocoMinutes, 'FOCO')}
               className={`flex-1 py-1.5 rounded-lg transition-all ${
                 mode === 'FOCO' && initialMinutes === customFocoMinutes
-                  ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700/60 font-semibold'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs border border-zinc-200 dark:border-zinc-700/60 font-semibold'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
               }`}
             >
               Foco ({customFocoMinutes}m)
@@ -185,8 +185,8 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
               onClick={() => handleModeChange(customDeepMinutes, 'FOCO')}
               className={`flex-1 py-1.5 rounded-lg transition-all ${
                 mode === 'FOCO' && initialMinutes === customDeepMinutes
-                  ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700/60 font-semibold'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs border border-zinc-200 dark:border-zinc-700/60 font-semibold'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
               }`}
             >
               Deep ({customDeepMinutes}m)
@@ -195,8 +195,8 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
               onClick={() => handleModeChange(customPausaMinutes, 'PAUSA_CURTA')}
               className={`flex-1 py-1.5 rounded-lg transition-all ${
                 mode === 'PAUSA_CURTA'
-                  ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700/60 font-semibold'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs border border-zinc-200 dark:border-zinc-700/60 font-semibold'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
               }`}
             >
               Pausa ({customPausaMinutes}m)
@@ -205,7 +205,7 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
 
           <button
             onClick={() => setIsConfigOpen(true)}
-            className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 transition-colors"
+            className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 transition-colors"
             title="Editar tempos do Pomodoro"
           >
             <Settings className="w-4 h-4" />
@@ -213,7 +213,7 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
         </div>
 
         {/* Circular / Minimalist Digital Clock Display */}
-        <div className="flex flex-col items-center justify-center py-6 px-4 rounded-2xl bg-zinc-900/40 border border-zinc-800 relative overflow-hidden">
+        <div className="flex flex-col items-center justify-center py-6 px-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 relative overflow-hidden shadow-xs">
           {/* Subtle glow circle */}
           <div
             className={`absolute w-48 h-48 rounded-full blur-3xl transition-opacity duration-1000 pointer-events-none ${
@@ -221,18 +221,18 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
             }`}
           />
 
-          <span className="text-[11px] font-mono uppercase tracking-widest text-zinc-400 mb-1">
+          <span className="text-[11px] font-mono uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1">
             {mode === 'FOCO' ? 'Sessão de Estudo Líquido' : 'Intervalo de Recuperação'}
           </span>
 
-          <div className="text-6xl font-mono font-semibold tracking-tighter text-zinc-100 my-2">
+          <div className="text-6xl font-mono font-semibold tracking-tighter text-zinc-900 dark:text-zinc-100 my-2">
             {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
           </div>
 
           {/* Progress Bar */}
-          <div className="w-56 h-1.5 bg-zinc-800 rounded-full mt-3 overflow-hidden">
+          <div className="w-56 h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full mt-3 overflow-hidden">
             <div
-              className="h-full bg-indigo-500 transition-all duration-300 rounded-full"
+              className="h-full bg-indigo-600 dark:bg-indigo-500 transition-all duration-300 rounded-full"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -241,7 +241,7 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
           <div className="flex items-center gap-3 mt-6">
             <button
               onClick={handleReset}
-              className="p-3 rounded-xl bg-zinc-800/80 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 border border-zinc-700/50 transition-all active:scale-95"
+              className="p-3 rounded-xl bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-300 dark:border-zinc-700/50 transition-all active:scale-95"
               title="Resetar tempo"
             >
               <RotateCcw className="w-4 h-4" />
@@ -249,9 +249,9 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
 
             <button
               onClick={() => setIsRunning(!isRunning)}
-              className={`px-8 py-3 rounded-xl text-sm font-semibold flex items-center gap-2.5 shadow-lg transition-all active:scale-95 ${
+              className={`px-8 py-3 rounded-xl text-sm font-semibold flex items-center gap-2.5 shadow-md transition-all active:scale-95 ${
                 isRunning
-                  ? 'bg-zinc-800 text-amber-300 border border-amber-500/30 shadow-amber-500/10'
+                  ? 'bg-amber-100 dark:bg-zinc-800 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30 shadow-amber-500/10'
                   : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20'
               }`}
             >
@@ -270,23 +270,23 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
 
         {/* Success toast notification */}
         {justCompleted && (
-          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3 text-xs text-emerald-300 animate-in fade-in slide-in-from-top-2 duration-300">
-            <Award className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/30 flex items-center gap-3 text-xs text-emerald-800 dark:text-emerald-300 animate-in fade-in slide-in-from-top-2 duration-300">
+            <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>Sessão computada! Ofensiva (streak) mantida e horas salvas no tópico.</span>
           </div>
         )}
 
         {/* Metrics Grid */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-[11px] text-zinc-400">Horas líquidas no tópico</div>
-            <div className="text-base font-mono font-semibold text-zinc-200 mt-0.5">
+          <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
+            <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">Horas líquidas no tópico</div>
+            <div className="text-base font-mono font-semibold text-zinc-900 dark:text-zinc-200 mt-0.5">
               {totalTopicHours}h {totalTopicMinutes}m
             </div>
           </div>
-          <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-[11px] text-zinc-400">Ofensiva ativa</div>
-            <div className="text-base font-mono font-semibold text-amber-400 mt-0.5 flex items-center gap-1.5">
+          <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
+            <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">Ofensiva ativa</div>
+            <div className="text-base font-mono font-semibold text-amber-600 dark:text-amber-400 mt-0.5 flex items-center gap-1.5">
               <Flame className="w-4 h-4 fill-amber-500/20" /> 14 dias
             </div>
           </div>
@@ -294,28 +294,28 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
       </div>
 
       {/* Complete session & record net time */}
-      <div className="pt-4 border-t border-zinc-800">
+      <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
         <button
           onClick={handleFinishSession}
-          className="w-full py-2.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-xs font-medium border border-zinc-800 hover:border-zinc-700 flex items-center justify-center gap-2 transition-all cursor-pointer"
+          className="w-full py-2.5 px-4 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 text-xs font-medium border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
         >
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           Concluir Sessão & Registrar no Banco (+Streak)
         </button>
       </div>
 
       {/* Modal de Configuração do Pomodoro */}
       {isConfigOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
-                <Settings className="w-4 h-4 text-indigo-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
+              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <Settings className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 Configurar Intervalos Pomodoro
               </h3>
               <button
                 onClick={() => setIsConfigOpen(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-200"
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -323,7 +323,7 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
 
             <form onSubmit={handleSaveConfig} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   Tempo de Foco Padrão (Minutos)
                 </label>
                 <input
@@ -332,12 +332,12 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
                   max={90}
                   value={customFocoMinutes}
                   onChange={(e) => setCustomFocoMinutes(parseInt(e.target.value || '25', 10))}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   Tempo de Foco Deep Work (Minutos)
                 </label>
                 <input
@@ -346,12 +346,12 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
                   max={120}
                   value={customDeepMinutes}
                   onChange={(e) => setCustomDeepMinutes(parseInt(e.target.value || '50', 10))}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   Tempo de Pausa Curta (Minutos)
                 </label>
                 <input
@@ -360,15 +360,15 @@ export const PomodoroTab: React.FC<PomodoroTabProps> = ({ topic, onSessionComple
                   max={30}
                   value={customPausaMinutes}
                   onChange={(e) => setCustomPausaMinutes(parseInt(e.target.value || '5', 10))}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={() => setIsConfigOpen(false)}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-200"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
                 >
                   Cancelar
                 </button>
