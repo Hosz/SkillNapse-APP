@@ -1,23 +1,29 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Plus, FileText, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Sidebar } from './components/layout/Sidebar';
 import type { NavView } from './components/layout/Sidebar';
 import { StudyTree } from './components/study-tree/StudyTree';
+import { PlanosListView } from './components/study-tree/PlanosListView';
 import { Workpad } from './components/workpad/Workpad';
 import { ScheduleView } from './components/schedule/ScheduleView';
 import { SimuladoView } from './components/simulado/SimuladoView';
+import { FlashcardsView } from './components/flashcards/FlashcardsView';
 import { EssayLabView } from './components/essay/EssayLabView';
 import { EditalParserView } from './components/edital/EditalParserView';
 import { PerformanceView } from './components/analytics/PerformanceView';
 import { AuthScreen } from './components/auth/AuthScreen';
+import { ProfileModal } from './components/profile/ProfileModal';
+import { TreeItemModal } from './components/study-tree/TreeItemModal';
+import type { TreeItemType, TreeItemMode, TreeItemFormData } from './components/study-tree/TreeItemModal';
+import { ConfirmModal } from './components/common/ConfirmModal';
+import { AiQuotaExceededModal } from './components/common/AiQuotaExceededModal';
 import { ThemeProvider } from './context/ThemeContext';
 import { planoService, sessaoService, gamificacaoService, authService, ApiService } from './services';
 import type { Topico, Materia, PlanoEstudo } from './types';
 
 function AppContent() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return !!ApiService.getToken() || !!localStorage.getItem('skillnapse_user');
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
 
   const [userEmail, setUserEmail] = useState<string>(() => {
     try {
@@ -31,8 +37,49 @@ function AppContent() {
     return 'estudante@skillnapse.ai';
   });
 
+  const [userName, setUserName] = useState<string>(() => {
+    try {
+      const user = localStorage.getItem('skillnapse_user');
+      if (user) {
+        return JSON.parse(user).nome || '';
+      }
+    } catch {
+      // Ignora erro
+    }
+    return '';
+  });
+
+  const [cargoAlvo, setCargoAlvo] = useState<string>(() => {
+    try {
+      const user = localStorage.getItem('skillnapse_user');
+      if (user) {
+        return JSON.parse(user).cargoAlvo || '';
+      }
+    } catch {
+      // Ignora erro
+    }
+    return '';
+  });
+
+  const [dailyGoalHours, setDailyGoalHours] = useState<number>(() => {
+    try {
+      const goal = localStorage.getItem('skillnapse_daily_goal');
+      if (goal) {
+        const parsed = parseFloat(goal);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+    } catch {
+      // Ignora erro
+    }
+    return 3;
+  });
+
+  const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
+
   const [currentView, setCurrentView] = useState<NavView>('tree');
   const [plano, setPlano] = useState<PlanoEstudo | null>(null);
+  const [planosLista, setPlanosLista] = useState<PlanoEstudo[]>([]);
+  const [isViewingTreeDetail, setIsViewingTreeDetail] = useState<boolean>(false);
   const [isLoadingPlano, setIsLoadingPlano] = useState<boolean>(true);
 
   // Selected topic and subject for the Knowledge Tree & Workpad split-view
@@ -43,20 +90,79 @@ function AppContent() {
   const [streakCount, setStreakCount] = useState(0);
   const [totalStudySecondsToday, setTotalStudySecondsToday] = useState(0);
 
+  // Practice shortcut filter states
+  const [simuladoFilter, setSimuladoFilter] = useState<{
+    planoId?: string;
+    materiaId?: string;
+    topicoId?: string;
+    subtopicoId?: string;
+  } | null>(null);
+  const [targetSimuladoId, setTargetSimuladoId] = useState<string | null>(null);
+
+  const [flashcardFilter, setFlashcardFilter] = useState<{
+    planoId?: string;
+    materiaId?: string;
+    materiaNome?: string;
+    topicoId?: string;
+    topicoNome?: string;
+    subtopicoId?: string;
+    subtopicoNome?: string;
+  } | null>(null);
+
+  // Knowledge Tree Item Modal State
+  const [treeModalConfig, setTreeModalConfig] = useState<{
+    isOpen: boolean;
+    mode: TreeItemMode;
+    type: TreeItemType;
+    initialData?: Partial<TreeItemFormData>;
+    parentId?: string;
+    materiaId?: string;
+    planoId?: string;
+    rawEntity?: any;
+  } | null>(null);
+  const [isTreeModalLoading, setIsTreeModalLoading] = useState(false);
+
+  // Destructive Actions Custom Confirmation Modal State
+  const [confirmModalConfig, setConfirmModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmLabel?: string;
+    variant?: 'danger' | 'warning' | 'info';
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
+  const [isConfirmModalLoading, setIsConfirmModalLoading] = useState(false);
+  const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
+  const [quotaModalMessage, setQuotaModalMessage] = useState<string | undefined>(undefined);
+
   const carregarDadosIniciais = () => {
+    setIsLoadingPlano(true);
+
+    planoService
+      .listarPlanos()
+      .then((todos) => {
+        setPlanosLista(todos || []);
+      })
+      .catch((err) => {
+        console.error('Erro ao listar planos:', err);
+      });
+
     planoService
       .obterPlanoAtivo()
       .then((fetchedPlano) => {
         if (fetchedPlano) {
-          setPlano(fetchedPlano);
+          const planoNormalizado: PlanoEstudo = {
+            ...fetchedPlano,
+            materias: fetchedPlano.materias || [],
+          };
+          setPlano(planoNormalizado);
           if (
-            fetchedPlano.materias &&
-            fetchedPlano.materias.length > 0 &&
-            fetchedPlano.materias[0].topicos &&
-            fetchedPlano.materias[0].topicos.length > 0
+            planoNormalizado.materias.length > 0 &&
+            planoNormalizado.materias[0].topicos &&
+            planoNormalizado.materias[0].topicos.length > 0
           ) {
-            setSelectedMateria(fetchedPlano.materias[0]);
-            setSelectedTopic(fetchedPlano.materias[0].topicos[0]);
+            setSelectedMateria(planoNormalizado.materias[0]);
+            setSelectedTopic(planoNormalizado.materias[0].topicos[0]);
           } else {
             setSelectedMateria(null);
             setSelectedTopic(null);
@@ -88,6 +194,71 @@ function AppContent() {
     });
   };
 
+  // Checagem ativa na inicialização / reinicialização da aplicação
+  useEffect(() => {
+    let isMounted = true;
+
+    const checarAutenticacaoInicial = async () => {
+      const token = ApiService.getToken();
+      const refreshToken = ApiService.getRefreshToken();
+      if (!token && !refreshToken) {
+        authService.logout();
+        if (isMounted) {
+          setIsAuthenticated(false);
+          setIsCheckingAuth(false);
+        }
+        return;
+      }
+
+      // Valida com o backend (/auth/me) se o token JWT é realmente válido e a sessão está ativa
+      const usuario = await authService.verificarSessao();
+      if (isMounted) {
+        if (usuario) {
+          setIsAuthenticated(true);
+          if (usuario.email) setUserEmail(usuario.email);
+          if (usuario.nome) setUserName(usuario.nome);
+        } else {
+          // Token inválido, expirado ou backend reiniciado
+          authService.logout();
+          setIsAuthenticated(false);
+        }
+        setIsCheckingAuth(false);
+      }
+    };
+
+    checarAutenticacaoInicial();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Escuta deslogamento forçado emitido pelo ApiService (quando 401 não pode ser renovado)
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setIsAuthenticated(false);
+      setPlano(null);
+      setPlanosLista([]);
+      setSelectedTopic(null);
+      setSelectedMateria(null);
+    };
+
+    window.addEventListener('skillnapse:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('skillnapse:unauthorized', handleUnauthorized);
+  }, []);
+
+  // Escuta estouro de limite de requisições / cota diária de IA
+  useEffect(() => {
+    const handleQuotaExceeded = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message?: string }>;
+      setQuotaModalMessage(customEvent.detail?.message);
+      setIsQuotaModalOpen(true);
+    };
+
+    window.addEventListener('skillnapse:quota-exceeded', handleQuotaExceeded);
+    return () => window.removeEventListener('skillnapse:quota-exceeded', handleQuotaExceeded);
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
       carregarDadosIniciais();
@@ -98,23 +269,62 @@ function AppContent() {
     try {
       const user = localStorage.getItem('skillnapse_user');
       if (user) {
-        setUserEmail(JSON.parse(user).email || 'estudante@skillnapse.ai');
+        const parsed = JSON.parse(user);
+        setUserEmail(parsed.email || 'estudante@skillnapse.ai');
+        if (parsed.nome) setUserName(parsed.nome);
+        if (parsed.cargoAlvo) setCargoAlvo(parsed.cargoAlvo);
       }
     } catch {
       // Ignora
     }
     setIsAuthenticated(true);
+    setIsCheckingAuth(false);
     carregarDadosIniciais();
+  };
+
+  const handleSaveProfile = (data: { userName: string; dailyGoalHours: number; cargoAlvo?: string }) => {
+    setUserName(data.userName);
+    setDailyGoalHours(data.dailyGoalHours);
+    if (data.cargoAlvo !== undefined) {
+      setCargoAlvo(data.cargoAlvo);
+    }
+
+    try {
+      const userRaw = localStorage.getItem('skillnapse_user');
+      const currentUser = userRaw ? JSON.parse(userRaw) : {};
+      const updatedUser = {
+        ...currentUser,
+        nome: data.userName,
+        cargoAlvo: data.cargoAlvo,
+      };
+      localStorage.setItem('skillnapse_user', JSON.stringify(updatedUser));
+      localStorage.setItem('skillnapse_daily_goal', data.dailyGoalHours.toString());
+    } catch (e) {
+      console.error('Erro ao salvar preferências do usuário:', e);
+    }
   };
 
   const handleLogout = () => {
     authService.logout();
     setIsAuthenticated(false);
+    setPlano(null);
+    setPlanosLista([]);
+    setSelectedTopic(null);
+    setSelectedMateria(null);
   };
 
-  const handleSelectTopic = (topic: Topico, materia: Materia) => {
+  const handleClearSelection = () => {
+    setSelectedTopic(null);
+    setSelectedMateria(null);
+  };
+
+  const handleSelectTopic = (topic: Topico | null, materia?: Materia | null) => {
+    if (!topic || selectedTopic?.id === topic.id) {
+      handleClearSelection();
+      return;
+    }
     setSelectedTopic(topic);
-    setSelectedMateria(materia);
+    setSelectedMateria(materia || null);
     if (currentView !== 'tree') {
       setCurrentView('tree');
     }
@@ -124,282 +334,546 @@ function AppContent() {
     setTotalStudySecondsToday((prev) => prev + seconds);
     setStreakCount((prev) => (prev === 0 ? 1 : prev));
 
-    if (selectedTopic) {
-      await sessaoService.registrarSessao({
-        topicoId: selectedTopic.id,
-        duracaoLiquidaSegundos: seconds,
-        status: 'CONCLUIDA',
-      });
+    const targetTopicId =
+      selectedTopic?.id && selectedTopic.id !== 'geral'
+        ? selectedTopic.id
+        : plano?.materias?.[0]?.topicos?.[0]?.id;
+
+    if (targetTopicId && targetTopicId !== 'geral') {
+      try {
+        await sessaoService.registrarSessao({
+          topicoId: targetTopicId,
+          duracaoLiquidaSegundos: seconds,
+          status: 'CONCLUIDA',
+        });
+        const [resumo, ofensiva] = await Promise.all([
+          sessaoService.obterResumoHoje(),
+          gamificacaoService.obterOfensiva(),
+        ]);
+        if (resumo?.totalSegundosEstudados !== undefined) {
+          setTotalStudySecondsToday(resumo.totalSegundosEstudados);
+        }
+        if (ofensiva?.totalDiasConsecutivos !== undefined) {
+          setStreakCount(ofensiva.totalDiasConsecutivos);
+        }
+      } catch (err) {
+        console.error('Erro ao sincronizar sessão de estudo com a API:', err);
+      }
     }
   };
 
   // --- CRUD PLANO DE ESTUDO ---
-  const handleCreatePlano = async () => {
-    const titulo = prompt('Título do novo Plano de Estudos (Ex: Concurso TCU - Auditor Federal):');
-    if (!titulo) return;
-    const cargoAlvo = prompt('Cargo alvo (Ex: Auditor Federal de Controle Externo):') || 'Geral';
-
-    try {
-      const novo = await planoService.criarPlano({
-        titulo,
-        cargoAlvo,
-      });
-      const planoCriado: PlanoEstudo = {
-        ...novo,
-        materias: novo.materias || [],
-      };
-      setPlano(planoCriado);
-      setSelectedTopic(null);
-      setSelectedMateria(null);
-    } catch (err) {
-      console.error('Erro ao criar plano:', err);
-    }
-  };
-
-  const handleEditPlano = async (planoAtual: PlanoEstudo) => {
-    const novoTitulo = prompt('Editar título do Plano de Estudo:', planoAtual.titulo);
-    if (!novoTitulo) return;
-    const novoCargo = prompt('Editar cargo ou concurso alvo:', planoAtual.cargoAlvo || '');
-
-    await planoService.editarPlano(planoAtual.id, {
-      titulo: novoTitulo,
+  const handleCreatePlano = () => {
+    setTreeModalConfig({
+      isOpen: true,
+      mode: 'create',
+      type: 'plano',
     });
-
-    setPlano((prev) =>
-      prev
-        ? {
-            ...prev,
-            titulo: novoTitulo,
-            cargoAlvo: novoCargo || prev.cargoAlvo,
-          }
-        : null
-    );
   };
 
-  const handleDeletePlano = async (planoId: string) => {
-    const confirm = window.confirm(
-      'ATENÇÃO: Deseja realmente excluir este Plano de Estudo e todas as suas matérias associadas?'
-    );
-    if (!confirm) return;
+  const handleEditPlano = (planoAtual: PlanoEstudo) => {
+    setTreeModalConfig({
+      isOpen: true,
+      mode: 'edit',
+      type: 'plano',
+      initialData: {
+        titulo: planoAtual.titulo,
+        cargoAlvo: planoAtual.cargoAlvo || '',
+      },
+      rawEntity: planoAtual,
+    });
+  };
 
-    await planoService.excluirPlano(planoId);
-    setPlano(null);
-    setSelectedTopic(null);
-    setSelectedMateria(null);
+  const handleDeletePlano = (planoId: string) => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Excluir Plano de Estudos',
+      description:
+        'ATENÇÃO: Deseja realmente excluir este Plano de Estudo? Todas as disciplinas, tópicos, anotações e histórico associados serão removidos permanentemente.',
+      confirmLabel: 'Excluir Plano',
+      variant: 'danger',
+      onConfirm: async () => {
+        setIsConfirmModalLoading(true);
+        try {
+          await planoService.excluirPlano(planoId);
+          setPlanosLista((prev) => prev.filter((p) => p.id !== planoId));
+          if (plano?.id === planoId) {
+            setPlano(null);
+            setIsViewingTreeDetail(false);
+            setSelectedTopic(null);
+            setSelectedMateria(null);
+          }
+          setConfirmModalConfig(null);
+        } catch (err) {
+          console.error('Erro ao excluir plano:', err);
+        } finally {
+          setIsConfirmModalLoading(false);
+        }
+      },
+    });
   };
 
   // --- CRUD MATÉRIA ---
-  const handleAddMateria = async () => {
+  const handleAddMateria = () => {
     if (!plano) return;
-    const nome = prompt('Nome da nova disciplina (Ex: Economia do Setor Público):');
-    if (!nome) return;
-    const cores = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
-    const corHex = cores[Math.floor(Math.random() * cores.length)];
-
-    const nova = await planoService.criarMateria(plano.id, {
-      nome,
-      corHex,
-      ordem: (plano.materias?.length || 0) + 1,
+    setTreeModalConfig({
+      isOpen: true,
+      mode: 'create',
+      type: 'materia',
+      planoId: plano.id,
     });
-
-    setPlano((prev) =>
-      prev
-        ? {
-            ...prev,
-            materias: [...prev.materias, nova],
-          }
-        : null
-    );
   };
 
-  const handleEditMateria = async (materia: Materia) => {
-    const novoNome = prompt('Editar nome da matéria:', materia.nome);
-    if (!novoNome) return;
-
-    await planoService.editarMateria(materia.id, {
-      nome: novoNome,
+  const handleEditMateria = (materia: Materia) => {
+    setTreeModalConfig({
+      isOpen: true,
+      mode: 'edit',
+      type: 'materia',
+      initialData: {
+        titulo: materia.nome,
+        corHex: materia.corHex,
+      },
+      rawEntity: materia,
     });
-
-    setPlano((prev) =>
-      prev
-        ? {
-            ...prev,
-            materias: prev.materias.map((m) =>
-              m.id === materia.id ? { ...m, nome: novoNome } : m
-            ),
-          }
-        : null
-    );
   };
 
-  const handleDeleteMateria = async (materiaId: string) => {
-    const confirm = window.confirm('Deseja excluir esta matéria e todos os seus tópicos?');
-    if (!confirm) return;
-
-    await planoService.excluirMateria(materiaId);
-    setPlano((prev) =>
-      prev
-        ? {
-            ...prev,
-            materias: prev.materias.filter((m) => m.id !== materiaId),
+  const handleDeleteMateria = (materiaId: string) => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Excluir Disciplina',
+      description:
+        'Deseja realmente remover esta disciplina? Todos os tópicos, subtópicos e cadernos vinculados a ela serão excluídos.',
+      confirmLabel: 'Excluir Disciplina',
+      variant: 'danger',
+      onConfirm: async () => {
+        setIsConfirmModalLoading(true);
+        try {
+          await planoService.excluirMateria(materiaId);
+          setPlano((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  materias: (prev.materias || []).filter((m) => m.id !== materiaId),
+                }
+              : null
+          );
+          if (selectedMateria?.id === materiaId) {
+            setSelectedTopic(null);
+            setSelectedMateria(null);
           }
-        : null
-    );
-    if (selectedMateria?.id === materiaId) {
-      setSelectedTopic(null);
-      setSelectedMateria(null);
-    }
+          setConfirmModalConfig(null);
+        } catch (err) {
+          console.error('Erro ao excluir matéria:', err);
+        } finally {
+          setIsConfirmModalLoading(false);
+        }
+      },
+    });
   };
 
   // --- CRUD TÓPICOS E SUBTÓPICOS ---
-  const handleAddTopic = async (materiaId: string) => {
-    const titulo = prompt('Título do novo tópico (Ex: Princípios Constitucionais):');
-    if (!titulo) return;
-    const pesoStr = prompt('Peso do tópico no edital (1 a 10):', '8');
-    const peso = Math.max(1, Math.min(10, parseInt(pesoStr || '5', 10)));
-
-    const novo = await planoService.criarTopico(materiaId, {
-      titulo,
-      peso,
-      ordem: 99,
+  const handleAddTopic = (materiaId: string) => {
+    setTreeModalConfig({
+      isOpen: true,
+      mode: 'create',
+      type: 'topico',
+      materiaId,
     });
-
-    setPlano((prev) =>
-      prev
-        ? {
-            ...prev,
-            materias: prev.materias.map((m) =>
-              m.id === materiaId ? { ...m, topicos: [...m.topicos, novo] } : m
-            ),
-          }
-        : null
-    );
-    setSelectedTopic(novo);
   };
 
-  const handleAddSubtopic = async (parentTopicId: string, materiaId: string) => {
-    const titulo = prompt('Título do novo subtópico (Ex: Teoria Tridimensional do Direito):');
-    if (!titulo) return;
-    const pesoStr = prompt('Peso do subtópico (1 a 10):', '5');
-    const peso = Math.max(1, Math.min(10, parseInt(pesoStr || '5', 10)));
-
-    const novoSub = await planoService.criarTopico(materiaId, {
-      titulo,
-      peso,
-      topicoPaiId: parentTopicId,
-      ordem: 99,
+  const handleAddSubtopic = (parentTopicId: string, materiaId: string) => {
+    setTreeModalConfig({
+      isOpen: true,
+      mode: 'create',
+      type: 'subtopico',
+      parentId: parentTopicId,
+      materiaId,
     });
-
-    const inserirSub = (topicos: Topico[]): Topico[] => {
-      return topicos.map((t) => {
-        if (t.id === parentTopicId) {
-          return {
-            ...t,
-            subtopicos: [...(t.subtopicos || []), novoSub],
-          };
-        }
-        if (t.subtopicos && t.subtopicos.length > 0) {
-          return {
-            ...t,
-            subtopicos: inserirSub(t.subtopicos),
-          };
-        }
-        return t;
-      });
-    };
-
-    setPlano((prev) =>
-      prev
-        ? {
-            ...prev,
-            materias: prev.materias.map((m) =>
-              m.id === materiaId ? { ...m, topicos: inserirSub(m.topicos) } : m
-            ),
-          }
-        : null
-    );
-    setSelectedTopic(novoSub);
   };
 
-  const handleEditTopic = async (topico: Topico) => {
-    const novoTitulo = prompt('Editar título do tópico:', topico.titulo);
-    if (!novoTitulo) return;
-    const pesoStr = prompt('Editar peso no edital (1 a 10):', topico.peso.toString());
-    const novoPeso = Math.max(1, Math.min(10, parseInt(pesoStr || topico.peso.toString(), 10)));
-
-    await planoService.editarTopico(topico.id, {
-      titulo: novoTitulo,
-      peso: novoPeso,
+  const handleEditTopic = (topico: Topico) => {
+    setTreeModalConfig({
+      isOpen: true,
+      mode: 'edit',
+      type: 'topico',
+      initialData: {
+        titulo: topico.titulo,
+        peso: topico.peso,
+      },
+      rawEntity: topico,
     });
+  };
 
-    const atualizarTopico = (topicos: Topico[]): Topico[] => {
-      return topicos.map((t) => {
-        if (t.id === topico.id) {
-          return { ...t, titulo: novoTitulo, peso: novoPeso };
-        }
-        if (t.subtopicos && t.subtopicos.length > 0) {
-          return { ...t, subtopicos: atualizarTopico(t.subtopicos) };
-        }
-        return t;
-      });
-    };
+  const handleSaveTreeModal = async (formData: TreeItemFormData) => {
+    if (!treeModalConfig) return;
+    const { mode, type, parentId, materiaId, rawEntity } = treeModalConfig;
+    setIsTreeModalLoading(true);
 
-    setPlano((prev) =>
-      prev
-        ? {
-            ...prev,
-            materias: prev.materias.map((m) => ({
-              ...m,
-              topicos: atualizarTopico(m.topicos),
-            })),
+    try {
+      if (type === 'plano') {
+        if (mode === 'create') {
+          const novo = await planoService.criarPlano({
+            titulo: formData.titulo,
+            cargoAlvo: formData.cargoAlvo || 'Geral',
+          });
+          const planoCriado: PlanoEstudo = {
+            ...novo,
+            materias: novo.materias || [],
+          };
+          setPlano(planoCriado);
+          setPlanosLista((prev) => [planoCriado, ...prev]);
+          setIsViewingTreeDetail(true);
+          setSelectedTopic(null);
+          setSelectedMateria(null);
+        } else {
+          const planoAtual = rawEntity as PlanoEstudo;
+          await planoService.editarPlano(planoAtual.id, {
+            titulo: formData.titulo,
+          });
+          const novoTitulo = formData.titulo;
+          const novoCargo = formData.cargoAlvo || planoAtual.cargoAlvo;
+          setPlano((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  titulo: novoTitulo,
+                  cargoAlvo: novoCargo,
+                }
+              : null
+          );
+          setPlanosLista((prev) =>
+            prev.map((p) =>
+              p.id === planoAtual.id
+                ? { ...p, titulo: novoTitulo, cargoAlvo: novoCargo }
+                : p
+            )
+          );
+        }
+      } else if (type === 'materia') {
+        if (mode === 'create') {
+          if (!plano) return;
+          const nova = await planoService.criarMateria(plano.id, {
+            nome: formData.titulo,
+            corHex: formData.corHex || '#3b82f6',
+            ordem: (plano.materias?.length || 0) + 1,
+          });
+          setPlano((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  materias: [...(prev.materias || []), nova],
+                }
+              : null
+          );
+        } else {
+          const materiaAtual = rawEntity as Materia;
+          const novoNome = formData.titulo;
+          const novaCorHex = formData.corHex || materiaAtual.corHex;
+          await planoService.editarMateria(materiaAtual.id, {
+            nome: novoNome,
+            corHex: novaCorHex,
+          });
+          setPlano((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  materias: (prev.materias || []).map((m) =>
+                    m.id === materiaAtual.id
+                      ? { ...m, nome: novoNome, corHex: novaCorHex }
+                      : m
+                  ),
+                }
+              : null
+          );
+          if (selectedMateria?.id === materiaAtual.id) {
+            setSelectedMateria((prev) =>
+              prev ? { ...prev, nome: novoNome, corHex: novaCorHex } : null
+            );
           }
-        : null
-    );
+        }
+      } else if (type === 'topico') {
+        if (mode === 'create') {
+          if (!materiaId) return;
+          const novo = await planoService.criarTopico(materiaId, {
+            titulo: formData.titulo,
+            peso: formData.peso || 8,
+            ordem: 99,
+          });
+          setPlano((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  materias: (prev.materias || []).map((m) =>
+                    m.id === materiaId
+                      ? { ...m, topicos: [...(m.topicos || []), novo] }
+                      : m
+                  ),
+                }
+              : null
+          );
+          setSelectedTopic(novo);
+        } else {
+          const topicoAtual = rawEntity as Topico;
+          const novoTitulo = formData.titulo;
+          const novoPeso = formData.peso ?? topicoAtual.peso;
+          await planoService.editarTopico(topicoAtual.id, {
+            titulo: novoTitulo,
+            peso: novoPeso,
+          });
+          const atualizarTopico = (topicos: Topico[]): Topico[] => {
+            return topicos.map((t) => {
+              if (t.id === topicoAtual.id) {
+                return { ...t, titulo: novoTitulo, peso: novoPeso };
+              }
+              if (t.subtopicos && t.subtopicos.length > 0) {
+                return { ...t, subtopicos: atualizarTopico(t.subtopicos) };
+              }
+              return t;
+            });
+          };
+          setPlano((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  materias: (prev.materias || []).map((m) => ({
+                    ...m,
+                    topicos: atualizarTopico(m.topicos || []),
+                  })),
+                }
+              : null
+          );
+          if (selectedTopic?.id === topicoAtual.id) {
+            setSelectedTopic((prev) =>
+              prev ? { ...prev, titulo: novoTitulo, peso: novoPeso } : null
+            );
+          }
+        }
+      } else if (type === 'subtopico') {
+        if (mode === 'create') {
+          if (!materiaId || !parentId) return;
+          const novoSub = await planoService.criarTopico(materiaId, {
+            titulo: formData.titulo,
+            peso: formData.peso || 5,
+            topicoPaiId: parentId,
+            ordem: 99,
+          });
+          const inserirSub = (topicos: Topico[]): Topico[] => {
+            return topicos.map((t) => {
+              if (t.id === parentId) {
+                return {
+                  ...t,
+                  subtopicos: [...(t.subtopicos || []), novoSub],
+                };
+              }
+              if (t.subtopicos && t.subtopicos.length > 0) {
+                return {
+                  ...t,
+                  subtopicos: inserirSub(t.subtopicos),
+                };
+              }
+              return t;
+            });
+          };
+          setPlano((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  materias: (prev.materias || []).map((m) =>
+                    m.id === materiaId
+                      ? { ...m, topicos: inserirSub(m.topicos || []) }
+                      : m
+                  ),
+                }
+              : null
+          );
+          setSelectedTopic(novoSub);
+        }
+      }
 
-    if (selectedTopic?.id === topico.id) {
-      setSelectedTopic((prev) => (prev ? { ...prev, titulo: novoTitulo, peso: novoPeso } : null));
+      setTreeModalConfig(null);
+    } catch (err) {
+      console.error('Erro ao salvar item na árvore:', err);
+      throw err;
+    } finally {
+      setIsTreeModalLoading(false);
     }
   };
 
-  const handleDeleteTopic = async (topicId: string) => {
-    const confirm = window.confirm('Deseja realmente excluir este tópico/subtópico?');
-    if (!confirm) return;
 
-    await planoService.excluirTopico(topicId);
+  const handleDeleteTopic = (topicId: string) => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Excluir Tópico / Subtópico',
+      description:
+        'Deseja realmente remover este tópico? Todos os subtópicos vinculados e notas associadas serão removidos da árvore de conhecimento.',
+      confirmLabel: 'Excluir Tópico',
+      variant: 'danger',
+      onConfirm: async () => {
+        setIsConfirmModalLoading(true);
+        try {
+          await planoService.excluirTopico(topicId);
 
-    const removerTopico = (topicos: Topico[]): Topico[] => {
-      return topicos
-        .filter((t) => t.id !== topicId)
-        .map((t) => ({
-          ...t,
-          subtopicos: t.subtopicos ? removerTopico(t.subtopicos) : [],
-        }));
-    };
+          const removerTopico = (topicos: Topico[]): Topico[] => {
+            return topicos
+              .filter((t) => t.id !== topicId)
+              .map((t) => ({
+                ...t,
+                subtopicos: t.subtopicos ? removerTopico(t.subtopicos) : [],
+              }));
+          };
 
-    setPlano((prev) =>
-      prev
-        ? {
-            ...prev,
-            materias: prev.materias.map((m) => ({
-              ...m,
-              topicos: removerTopico(m.topicos),
-            })),
+          setPlano((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  materias: (prev.materias || []).map((m) => ({
+                    ...m,
+                    topicos: removerTopico(m.topicos || []),
+                  })),
+                }
+              : null
+          );
+
+          if (selectedTopic?.id === topicId) {
+            setSelectedTopic(null);
           }
-        : null
-    );
-
-    if (selectedTopic?.id === topicId) {
-      setSelectedTopic(null);
-    }
+          setConfirmModalConfig(null);
+        } catch (err) {
+          console.error('Erro ao excluir tópico:', err);
+        } finally {
+          setIsConfirmModalLoading(false);
+        }
+      },
+    });
   };
 
-  // Se não autenticado, exige login ou registro na AuthScreen
+  const handlePraticarSimulado = (params: {
+    planoId?: string;
+    materiaId?: string;
+    topicoId?: string;
+    subtopicoId?: string;
+  }) => {
+    setTargetSimuladoId(null);
+    setSimuladoFilter(params);
+    setCurrentView('simulado');
+  };
+
+  const handleNavigateToSimuladoFromAnalytics = (simuladoId?: string) => {
+    setTargetSimuladoId(simuladoId || null);
+    setSimuladoFilter(null);
+    setCurrentView('simulado');
+  };
+
+  const handlePraticarFlashcards = (params: {
+    planoId?: string;
+    materiaId?: string;
+    materiaNome?: string;
+    topicoId?: string;
+    topicoNome?: string;
+    subtopicoId?: string;
+    subtopicoNome?: string;
+  }) => {
+    setFlashcardFilter(params);
+    setCurrentView('flashcards');
+  };
+
+  const handleStartStudyTopic = async (materiaId?: string, topicoId?: string) => {
+    let targetPlano = plano;
+
+    const findInPlan = (p: PlanoEstudo): { materia: Materia | null; topico: Topico | null } | null => {
+      for (const m of p.materias || []) {
+        const searchTopics = (topics: Topico[]): Topico | null => {
+          for (const t of topics) {
+            if (t.id === topicoId) return t;
+            if (t.subtopicos && t.subtopicos.length > 0) {
+              const sub = searchTopics(t.subtopicos);
+              if (sub) return sub;
+            }
+          }
+          return null;
+        };
+
+        if (topicoId) {
+          const t = searchTopics(m.topicos || []);
+          if (t) {
+            return { materia: m, topico: t };
+          }
+        } else if (materiaId && m.id === materiaId) {
+          return { materia: m, topico: m.topicos?.[0] || null };
+        }
+      }
+      return null;
+    };
+
+    if (targetPlano) {
+      const found = findInPlan(targetPlano);
+      if (found) {
+        setSelectedMateria(found.materia);
+        setSelectedTopic(found.topico);
+        setIsViewingTreeDetail(true);
+        setCurrentView('tree');
+        return;
+      }
+    }
+
+    // Se não encontrou no ativo, procurar em todos os planos da lista
+    for (const p of planosLista) {
+      if (p.id === targetPlano?.id) continue;
+      const found = findInPlan(p);
+      if (found) {
+        setPlano(p);
+        setSelectedMateria(found.materia);
+        setSelectedTopic(found.topico);
+        setIsViewingTreeDetail(true);
+        setCurrentView('tree');
+        return;
+      }
+    }
+
+    // Se temos materiaId mas o plano ainda não foi carregado com filhos, tenta buscar completo
+    if (materiaId) {
+      for (const p of planosLista) {
+        try {
+          const completo = await planoService.obterPlanoPorId(p.id);
+          if (completo) {
+            const found = findInPlan(completo);
+            if (found) {
+              setPlano(completo);
+              setSelectedMateria(found.materia);
+              setSelectedTopic(found.topico);
+              setIsViewingTreeDetail(true);
+              setCurrentView('tree');
+              return;
+            }
+          }
+        } catch {
+          // Continua
+        }
+      }
+    }
+
+    // Fallback: abre a árvore
+    setIsViewingTreeDetail(true);
+    setCurrentView('tree');
+  };
+
+  // 1. Enquanto checa autenticação real com a API, exibe tela de carregamento suave
+  if (isCheckingAuth) {
+    return (
+      <div className="flex h-screen w-screen bg-slate-900 dark:bg-zinc-950 items-center justify-center text-zinc-100 flex-col gap-3 font-sans select-none">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+        <span className="text-xs font-mono text-zinc-400">Verificando autenticação...</span>
+      </div>
+    );
+  }
+
+  // 2. Se não autenticado (ou sessão expirada/desconectada), exige login na AuthScreen
   if (!isAuthenticated) {
     return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
   }
 
   return (
-    <div className="flex h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-none">
+    <div className="flex h-screen w-screen bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans select-none print:h-auto print:w-auto print:overflow-visible print:bg-white print:text-zinc-900">
       {/* 1. Left Slim Sidebar */}
       <Sidebar
         currentView={currentView}
@@ -407,23 +881,60 @@ function AppContent() {
         streakCount={streakCount}
         totalStudySecondsToday={totalStudySecondsToday}
         userEmail={userEmail}
+        userName={userName}
+        dailyGoalHours={dailyGoalHours}
+        onOpenProfile={() => setIsProfileOpen(true)}
         onLogout={handleLogout}
       />
 
       {/* 2. Main Content Area */}
-      <main className="flex-1 h-screen flex overflow-hidden">
+      <main className="flex-1 h-screen flex overflow-hidden print:h-auto print:w-full print:overflow-visible print:p-0">
         {currentView === 'tree' && (
-          isLoadingPlano ? (
+          isLoadingPlano && planosLista.length === 0 ? (
             <div className="flex-1 h-full flex items-center justify-center text-zinc-500">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
             </div>
-          ) : plano ? (
+          ) : !isViewingTreeDetail || !plano ? (
+            <PlanosListView
+              planos={planosLista}
+              onSelectPlano={async (p) => {
+                setPlano(p);
+                setIsViewingTreeDetail(true);
+                try {
+                  const completo = await planoService.obterPlanoPorId(p.id);
+                  if (completo) {
+                    setPlano(completo);
+                    if (
+                      completo.materias &&
+                      completo.materias.length > 0 &&
+                      completo.materias[0].topicos &&
+                      completo.materias[0].topicos.length > 0
+                    ) {
+                      setSelectedMateria(completo.materias[0]);
+                      setSelectedTopic(completo.materias[0].topicos[0]);
+                    } else {
+                      setSelectedMateria(null);
+                      setSelectedTopic(null);
+                    }
+                  }
+                } catch (err) {
+                  console.error('Erro ao carregar detalhes do plano:', err);
+                }
+              }}
+              onCreatePlano={handleCreatePlano}
+              onGoToEdital={() => setCurrentView('edital')}
+              onEditPlano={handleEditPlano}
+              onDeletePlano={handleDeletePlano}
+              isLoading={isLoadingPlano}
+            />
+          ) : (
             <div className="flex-1 h-full flex flex-col md:flex-row overflow-hidden">
-              {/* Center: Árvore de Conhecimento (55% width) */}
+              {/* Center: Árvore de Conhecimento */}
               <StudyTree
                 plano={plano}
                 selectedTopicId={selectedTopic?.id || null}
                 onSelectTopic={handleSelectTopic}
+                onBackToList={() => setIsViewingTreeDetail(false)}
                 onEditPlano={handleEditPlano}
                 onDeletePlano={handleDeletePlano}
                 onAddMateria={handleAddMateria}
@@ -433,55 +944,44 @@ function AppContent() {
                 onAddSubtopic={handleAddSubtopic}
                 onEditTopic={handleEditTopic}
                 onDeleteTopic={handleDeleteTopic}
+                onPraticarSimulado={handlePraticarSimulado}
+                onPraticarFlashcards={handlePraticarFlashcards}
               />
 
-              {/* Right: Workpad Lateral Acoplado (45% width) */}
+              {/* Right: Workpad Lateral Retrátil com Tickets */}
               <Workpad
                 topic={selectedTopic}
                 materia={selectedMateria || undefined}
+                planoId={plano?.id || planosLista[0]?.id}
                 initialTab="pomodoro"
-                onClose={() => setSelectedTopic(null)}
+                onClose={handleClearSelection}
                 onSessionComplete={handleSessionComplete}
+                onPraticarSimulado={handlePraticarSimulado}
+                onStartSimulado={handleNavigateToSimuladoFromAnalytics}
               />
-            </div>
-          ) : (
-            <div className="flex-1 h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-indigo-400">
-                <Sparkles className="w-8 h-8" />
-              </div>
-              <div className="max-w-md space-y-2">
-                <h2 className="text-lg font-bold text-zinc-100">Nenhum Plano de Estudo Ativo</h2>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  Você ainda não possui nenhum plano cadastrado. Comece criando um plano manualmente ou importe o edital do seu concurso para gerar a árvore automaticamente via Inteligência Artificial.
-                </p>
-              </div>
-              <div className="flex items-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleCreatePlano}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Criar Plano Manualmente</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentView('edital')}
-                  className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-semibold transition-all flex items-center gap-2"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Importar Edital (IA)</span>
-                </button>
-              </div>
             </div>
           )
         )}
 
-        {currentView === 'schedule' && <ScheduleView />}
+        {currentView === 'schedule' && (
+          <ScheduleView
+            plano={plano || planosLista[0]}
+            planos={planosLista}
+            onStartStudyTopic={handleStartStudyTopic}
+            onStartSimulado={handlePraticarSimulado}
+            onStartFlashcards={handlePraticarFlashcards}
+          />
+        )}
 
         {currentView === 'simulado' && (
-          plano ? (
-            <SimuladoView plano={plano} />
+          plano || planosLista.length > 0 ? (
+            <SimuladoView
+              plano={plano || planosLista[0]}
+              planos={planosLista}
+              onProficienciaAtualizada={carregarDadosIniciais}
+              initialFilter={simuladoFilter}
+              initialSimuladoId={targetSimuladoId}
+            />
           ) : (
             <div className="flex-1 h-full flex flex-col items-center justify-center p-8 text-center space-y-3">
               <h3 className="text-base font-bold text-zinc-200">Plano de Estudo Necessário</h3>
@@ -490,13 +990,24 @@ function AppContent() {
               </p>
               <button
                 type="button"
-                onClick={() => setCurrentView('tree')}
+                onClick={() => {
+                  setCurrentView('tree');
+                  setIsViewingTreeDetail(false);
+                }}
                 className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold"
               >
-                Ir para Árvore de Estudos
+                Ir para Planos de Estudos
               </button>
             </div>
           )
+        )}
+
+        {currentView === 'flashcards' && (
+          <FlashcardsView
+            planos={planosLista}
+            planoAtivo={plano}
+            initialFilter={flashcardFilter}
+          />
         )}
 
         {currentView === 'essay' && <EssayLabView />}
@@ -505,6 +1016,7 @@ function AppContent() {
           <EditalParserView
             onPlanCreated={() => {
               carregarDadosIniciais();
+              setIsViewingTreeDetail(true);
               setCurrentView('tree');
             }}
           />
@@ -512,7 +1024,10 @@ function AppContent() {
 
         {currentView === 'analytics' && (
           plano ? (
-            <PerformanceView plano={plano} />
+            <PerformanceView
+              plano={plano}
+              onNavigateToSimulado={handleNavigateToSimuladoFromAnalytics}
+            />
           ) : (
             <div className="flex-1 h-full flex flex-col items-center justify-center p-8 text-center space-y-3">
               <h3 className="text-base font-bold text-zinc-200">Plano de Estudo Necessário</h3>
@@ -530,6 +1045,55 @@ function AppContent() {
           )
         )}
       </main>
+
+      {/* 3. Modal de Perfil e Metas */}
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        userEmail={userEmail}
+        userName={userName}
+        cargoAlvo={cargoAlvo}
+        dailyGoalHours={dailyGoalHours}
+        streakCount={streakCount}
+        totalStudySecondsToday={totalStudySecondsToday}
+        onSave={handleSaveProfile}
+      />
+
+      {/* 4. Modal Unificado de Criação e Edição da Árvore de Conhecimento */}
+      {treeModalConfig && (
+        <TreeItemModal
+          isOpen={treeModalConfig.isOpen}
+          mode={treeModalConfig.mode}
+          type={treeModalConfig.type}
+          initialData={treeModalConfig.initialData}
+          isLoading={isTreeModalLoading}
+          onClose={() => setTreeModalConfig(null)}
+          onSave={handleSaveTreeModal}
+        />
+      )}
+
+      {/* 5. Modal Customizado de Confirmação para Ações Destrutivas */}
+      {confirmModalConfig && (
+        <ConfirmModal
+          isOpen={confirmModalConfig.isOpen}
+          title={confirmModalConfig.title}
+          description={confirmModalConfig.description}
+          confirmLabel={confirmModalConfig.confirmLabel}
+          variant={confirmModalConfig.variant}
+          isLoading={isConfirmModalLoading}
+          onConfirm={confirmModalConfig.onConfirm}
+          onClose={() => {
+            if (!isConfirmModalLoading) setConfirmModalConfig(null);
+          }}
+        />
+      )}
+
+      {/* 6. Modal Explicativo de Cota de IA Excedida */}
+      <AiQuotaExceededModal
+        isOpen={isQuotaModalOpen}
+        message={quotaModalMessage}
+        onClose={() => setIsQuotaModalOpen(false)}
+      />
     </div>
   );
 }
