@@ -741,14 +741,14 @@ export const DailyScheduleView: React.FC<DailyScheduleViewProps> = ({
       </div>
 
       {/* Grade do Calendário Mensal com Bordas em Alto Contraste */}
-      <div className="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto">
-        <div className="bg-white dark:bg-zinc-900/60 p-4 md:p-5 rounded-3xl border-2 border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col flex-1 space-y-3">
+      <div className="flex-1 flex flex-col p-2 sm:p-4 md:p-6 overflow-y-auto">
+        <div className="bg-white dark:bg-zinc-900/60 p-2.5 sm:p-4 md:p-5 rounded-2xl sm:rounded-3xl border-2 border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col flex-1 space-y-2 sm:space-y-3">
           {/* Cabeçalho dos Dias da Semana */}
-          <div className="grid grid-cols-7 gap-2.5 pb-2 border-b-2 border-zinc-200 dark:border-zinc-800">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2.5 pb-2 border-b-2 border-zinc-200 dark:border-zinc-800">
             {DIAS_SEMANA_SIGLAS.map((sigla, idx) => (
               <div
                 key={sigla}
-                className={`text-center py-2 rounded-xl text-xs font-mono font-bold uppercase tracking-wider ${
+                className={`text-center py-1 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider ${
                   idx === 0 || idx === 6
                     ? 'text-zinc-400 dark:text-zinc-500 bg-zinc-100/60 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60'
                     : 'text-zinc-800 dark:text-zinc-200 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800'
@@ -760,7 +760,7 @@ export const DailyScheduleView: React.FC<DailyScheduleViewProps> = ({
           </div>
 
           {/* Células dos Dias com Bordas Nítidas */}
-          <div className="grid grid-cols-7 gap-2.5 flex-1 auto-rows-fr">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2.5 flex-1 auto-rows-fr">
             {diasDoMes.map((dia) => {
               // Blocos do template semanal que se aplicam a este dia da semana
               const blocosDoDia = gradeSemanal.filter((b) => b.diaSemana === dia.diaSemana);
@@ -770,7 +770,7 @@ export const DailyScheduleView: React.FC<DailyScheduleViewProps> = ({
                 <div
                   key={dia.dataIso}
                   onClick={() => handleAbrirPopUpDia(dia)}
-                  className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between group min-h-[105px] md:min-h-[120px] ${
+                  className={`p-1.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between group min-h-[64px] sm:min-h-[105px] md:min-h-[120px] ${
                     isDiaAberto
                       ? 'ring-2 ring-indigo-500 border-indigo-600 dark:border-indigo-500 bg-indigo-50/30 dark:bg-indigo-950/40 shadow-md'
                       : dia.ehHoje
@@ -783,7 +783,7 @@ export const DailyScheduleView: React.FC<DailyScheduleViewProps> = ({
                   {/* Topo da Célula: Número do Dia & Badge de Contagem */}
                   <div className="flex items-center justify-between">
                     <span
-                      className={`text-xs font-mono font-bold flex items-center justify-center w-6 h-6 rounded-full transition-all ${
+                      className={`text-[11px] sm:text-xs font-mono font-bold flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full transition-all ${
                         dia.ehHoje
                           ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-600/25'
                           : isDiaAberto
@@ -797,14 +797,34 @@ export const DailyScheduleView: React.FC<DailyScheduleViewProps> = ({
                     </span>
 
                     {blocosDoDia.length > 0 && (
-                      <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700/60">
+                      <span className="hidden sm:inline-block text-[10px] font-mono font-semibold px-2 py-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700/60">
                         {blocosDoDia.length} {blocosDoDia.length === 1 ? 'bloco' : 'blocos'}
                       </span>
                     )}
                   </div>
 
-                  {/* Prévia dos Blocos do Dia */}
-                  <div className="space-y-1 my-1.5 flex-1 overflow-hidden">
+                  {/* Mobile Dots Indicator (sm:hidden) */}
+                  {blocosDoDia.length > 0 && (
+                    <div className="flex sm:hidden items-center justify-center gap-1 my-1 flex-wrap">
+                      {blocosDoDia.slice(0, 3).map((b) => {
+                        const meta = getTipoBlocoMeta(b.tipoBloco);
+                        return (
+                          <span
+                            key={b.id}
+                            className={`w-1.5 h-1.5 rounded-full ${meta.corDot}`}
+                          />
+                        );
+                      })}
+                      {blocosDoDia.length > 3 && (
+                        <span className="text-[8px] font-mono font-bold text-zinc-400 leading-none">
+                          +{blocosDoDia.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Prévia dos Blocos do Dia (Desktop sm:block) */}
+                  <div className="space-y-1 my-1.5 flex-1 overflow-hidden hidden sm:block">
                     {blocosDoDia.slice(0, 2).map((b) => {
                       const meta = getTipoBlocoMeta(b.tipoBloco);
                       return (

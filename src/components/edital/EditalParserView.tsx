@@ -438,9 +438,9 @@ export const EditalParserView: React.FC<EditalParserViewProps> = ({ onPlanCreate
     ) || 0;
 
   return (
-    <div className="flex-1 h-full flex flex-col md:flex-row bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans select-none">
+    <div className="flex-1 h-full flex flex-col md:flex-row bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-y-auto md:overflow-hidden font-sans select-none">
       {/* Coluna Esquerda: Upload, Configuração e Rascunhos Anteriores */}
-      <div className="flex-1 flex flex-col h-full border-r border-zinc-200 dark:border-zinc-900 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 flex flex-col h-auto md:h-full border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-900 overflow-visible md:overflow-y-auto p-4 sm:p-6 space-y-6 shrink-0">
         <div>
           <div className="text-xs font-mono text-indigo-600 dark:text-indigo-400 font-semibold mb-1 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5" />
@@ -621,7 +621,7 @@ export const EditalParserView: React.FC<EditalParserViewProps> = ({ onPlanCreate
       </div>
 
       {/* Coluna Direita: Pré-visualização da Árvore Estruturada e Conversão em Plano */}
-      <div className="w-full md:w-[500px] lg:w-[540px] bg-zinc-100/60 dark:bg-zinc-950 p-6 border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-900 flex flex-col justify-between overflow-y-auto">
+      <div className="w-full md:w-[500px] lg:w-[540px] bg-zinc-100/60 dark:bg-zinc-950 p-4 sm:p-6 border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-900 flex flex-col justify-between overflow-visible md:overflow-y-auto shrink-0">
         {isProcessing ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-zinc-600 dark:text-zinc-400 p-6 space-y-3">
             <Loader2 className="w-10 h-10 animate-spin text-indigo-600 dark:text-indigo-500" />

@@ -462,9 +462,9 @@ export const EssayLabView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 h-full flex flex-col md:flex-row bg-slate-50 dark:bg-zinc-950 overflow-hidden font-sans select-none text-zinc-900 dark:text-zinc-100">
+    <div className="flex-1 h-full flex flex-col md:flex-row bg-slate-50 dark:bg-zinc-950 overflow-y-auto md:overflow-hidden font-sans select-none text-zinc-900 dark:text-zinc-100">
       {/* Center Left: Essay Prompt & Input Editor */}
-      <div className="flex-1 flex flex-col h-full border-r border-zinc-200 dark:border-zinc-800 overflow-hidden">
+      <div className="flex-1 flex flex-col h-auto md:h-full border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 overflow-visible md:overflow-hidden shrink-0">
         {/* Header */}
         <div className="p-5 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 space-y-4 shrink-0 shadow-2xs">
           {successToast && (
@@ -813,7 +813,7 @@ export const EssayLabView: React.FC = () => {
       </div>
 
       {/* Right Drawer: AI Evaluation & Competencies (0 to 1000) */}
-      <div className="w-full md:w-[460px] bg-white dark:bg-zinc-950 p-5 overflow-y-auto shrink-0 border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-800 space-y-4">
+      <div className="w-full md:w-[460px] bg-white dark:bg-zinc-950 p-4 sm:p-5 overflow-visible md:overflow-y-auto shrink-0 border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-800 space-y-4">
         {evaluationResult ? (
           <div className="space-y-4 animate-in fade-in duration-300">
             {/* Header com botão de Nova Redação */}

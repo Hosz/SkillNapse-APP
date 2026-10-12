@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Menu, Sparkles, Flame } from 'lucide-react';
 import { Sidebar } from './components/layout/Sidebar';
 import type { NavView } from './components/layout/Sidebar';
 import { StudyTree } from './components/study-tree/StudyTree';
@@ -76,6 +76,7 @@ function AppContent() {
   });
 
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   const [currentView, setCurrentView] = useState<NavView>('tree');
   const [plano, setPlano] = useState<PlanoEstudo | null>(null);
@@ -921,11 +922,62 @@ function AppContent() {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans select-none print:h-auto print:w-auto print:overflow-visible print:bg-white print:text-zinc-900">
+    <div className="flex flex-col md:flex-row h-screen w-screen bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans select-none print:h-auto print:w-auto print:overflow-visible print:bg-white print:text-zinc-900">
+      {/* 0. Mobile Top Header (h-14, visible only on mobile md:hidden) */}
+      <header className="h-14 bg-white/95 dark:bg-zinc-950/90 border-b border-zinc-200 dark:border-zinc-800 px-4 flex items-center justify-between shrink-0 md:hidden z-30 backdrop-blur-md">
+        {/* Hamburger Menu & Brand */}
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
+            title="Abrir Menu de Navegação"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-xs">
+              <Sparkles className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="font-bold text-xs tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-1">
+              SkillNapse
+              <span className="text-[9px] font-mono uppercase bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 px-1 py-0.2 rounded border border-indigo-200 dark:border-indigo-500/30">
+                PRO
+              </span>
+            </span>
+          </div>
+        </div>
+
+        {/* Right Quick Stats & Avatar */}
+        <div className="flex items-center gap-2">
+          <div
+            onClick={() => setIsProfileOpen(true)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-[11px] font-mono font-bold text-amber-700 dark:text-amber-400 cursor-pointer"
+            title={`${streakCount} dias de ofensiva`}
+          >
+            <Flame className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+            <span>{streakCount}d</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsProfileOpen(true)}
+            className="w-7 h-7 rounded-full bg-indigo-50 dark:bg-indigo-600/20 border border-indigo-200 dark:border-indigo-500/40 flex items-center justify-center text-[10px] font-bold text-indigo-700 dark:text-indigo-400 cursor-pointer"
+            title="Abrir Perfil"
+          >
+            {(userName || userEmail || 'SN').slice(0, 2).toUpperCase()}
+          </button>
+        </div>
+      </header>
+
       {/* 1. Left Slim Sidebar */}
       <Sidebar
         currentView={currentView}
-        onSelectView={setCurrentView}
+        onSelectView={(view) => {
+          setCurrentView(view);
+          setIsMobileMenuOpen(false);
+        }}
         streakCount={streakCount}
         totalStudySecondsToday={totalStudySecondsToday}
         userEmail={userEmail}
@@ -933,10 +985,12 @@ function AppContent() {
         dailyGoalHours={dailyGoalHours}
         onOpenProfile={() => setIsProfileOpen(true)}
         onLogout={handleLogout}
+        isOpenMobile={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
       {/* 2. Main Content Area */}
-      <main className="flex-1 h-screen flex overflow-hidden print:h-auto print:w-full print:overflow-visible print:p-0">
+      <main className="flex-1 h-[calc(100vh-3.5rem)] md:h-screen flex overflow-hidden print:h-auto print:w-full print:overflow-visible print:p-0">
         {currentView === 'tree' && (
           isLoadingPlano && planosLista.length === 0 ? (
             <div className="flex-1 h-full flex items-center justify-center text-zinc-500">

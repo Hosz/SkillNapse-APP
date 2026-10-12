@@ -652,32 +652,32 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
       )}
 
       {/* Top Switcher Navigation Bar */}
-      <div className="px-5 py-2.5 border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-950/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 z-20 backdrop-blur-xs">
+      <div className="px-3 sm:px-5 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-950/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0 z-20 backdrop-blur-xs">
         <div className="flex items-center gap-3">
           <div className="flex items-center p-1 bg-zinc-100 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
             <button
               type="button"
               onClick={() => setModoVisao('diaria')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 modoVisao === 'diaria'
                   ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
               }`}
             >
               <CalendarCheck className="w-3.5 h-3.5" />
-              <span>Agenda Diária (Calendário)</span>
+              <span>Agenda Diária<span className="hidden sm:inline"> (Calendário)</span></span>
             </button>
             <button
               type="button"
               onClick={() => setModoVisao('semanal')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 modoVisao === 'semanal'
                   ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
               }`}
             >
               <CalendarIcon className="w-3.5 h-3.5" />
-              <span>Grade Semanal (Template Base)</span>
+              <span>Grade Semanal<span className="hidden sm:inline"> (Template Base)</span></span>
             </button>
           </div>
         </div>

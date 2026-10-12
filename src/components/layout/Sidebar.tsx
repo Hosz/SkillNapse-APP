@@ -14,6 +14,7 @@ import {
   Moon,
   Layers,
   Settings,
+  X,
 } from 'lucide-react';
 import { useTheme } from '../../context/useTheme';
 
@@ -36,6 +37,8 @@ interface SidebarProps {
   dailyGoalHours?: number;
   onOpenProfile?: () => void;
   onLogout: () => void;
+  isOpenMobile?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -48,6 +51,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   dailyGoalHours = 3,
   onOpenProfile,
   onLogout,
+  isOpenMobile = false,
+  onCloseMobile,
 }) => {
   const { theme, toggleTheme } = useTheme();
 
@@ -81,8 +86,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return clean.slice(0, 2).toUpperCase();
   };
 
-  return (
-    <aside className="w-64 h-screen bg-white dark:bg-zinc-950 border-r-2 border-zinc-200 dark:border-zinc-800 flex flex-col justify-between select-none shrink-0 z-30 transition-colors print:hidden">
+  const renderSidebarBody = (isMobile: boolean) => (
+    <>
       {/* Brand Header */}
       <div>
         <div className="h-16 px-5 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800">
@@ -101,19 +106,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          {/* Theme Toggle Button */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-all cursor-pointer"
-            title={theme === 'dark' ? 'Mudar para Tema Branco' : 'Mudar para Tema Escuro'}
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-4 h-4 text-amber-400" />
-            ) : (
-              <Moon className="w-4 h-4 text-indigo-600" />
+          <div className="flex items-center gap-1">
+            {/* Theme Toggle Button */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-all cursor-pointer"
+              title={theme === 'dark' ? 'Mudar para Tema Branco' : 'Mudar para Tema Escuro'}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-indigo-600" />
+              )}
+            </button>
+
+            {/* Mobile Close Button */}
+            {isMobile && (
+              <button
+                type="button"
+                onClick={onCloseMobile}
+                className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors cursor-pointer"
+                title="Fechar Menu"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
-          </button>
+          </div>
         </div>
 
         {/* Navigation Links */}
@@ -127,8 +146,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             return (
               <button
                 key={item.id}
-                onClick={() => onSelectView(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                onClick={() => {
+                  onSelectView(item.id);
+                  if (isMobile) onCloseMobile?.();
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
                   isActive
                     ? 'bg-indigo-50 dark:bg-zinc-800 text-indigo-700 dark:text-zinc-100 shadow-xs border border-indigo-200 dark:border-zinc-700 font-semibold'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900 border border-transparent'
@@ -153,7 +175,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 space-y-3 bg-zinc-50/70 dark:bg-zinc-950/70">
         {/* Streak & Today Study Time Widget */}
         <div
-          onClick={onOpenProfile}
+          onClick={() => {
+            onOpenProfile?.();
+            if (isMobile) onCloseMobile?.();
+          }}
           className="p-3 rounded-xl bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 space-y-2 shadow-2xs hover:border-indigo-300 dark:hover:border-zinc-700 transition-all cursor-pointer group"
           title="Clique para calibrar sua meta diária de estudos"
         >
@@ -191,7 +216,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* User Profile & Actions */}
         <div
-          onClick={onOpenProfile}
+          onClick={() => {
+            onOpenProfile?.();
+            if (isMobile) onCloseMobile?.();
+          }}
           className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 shadow-2xs hover:border-indigo-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900/80 transition-all cursor-pointer group"
           title="Abrir Meu Perfil e Configurações"
         >
@@ -216,8 +244,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenProfile?.();
+                if (isMobile) onCloseMobile?.();
               }}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors cursor-pointer"
               title="Configurações e Perfil"
             >
               <Settings className="w-3.5 h-3.5" />
@@ -227,8 +256,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 onLogout();
+                if (isMobile) onCloseMobile?.();
               }}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
               title="Deslogar da conta"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -236,6 +266,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* 1. Desktop Persistent Slim Sidebar (hidden on mobile) */}
+      <aside className="hidden md:flex w-64 h-screen bg-white dark:bg-zinc-950 border-r-2 border-zinc-200 dark:border-zinc-800 flex-col justify-between select-none shrink-0 z-30 transition-colors print:hidden">
+        {renderSidebarBody(false)}
+      </aside>
+
+      {/* 2. Mobile Drawer & Backdrop (rendered when isOpenMobile is true) */}
+      {isOpenMobile && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop overlay */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={onCloseMobile}
+          />
+
+          {/* Sliding Drawer */}
+          <aside className="relative w-72 max-w-[85vw] h-screen bg-white dark:bg-zinc-950 border-r-2 border-zinc-200 dark:border-zinc-800 flex flex-col justify-between select-none shrink-0 z-50 shadow-2xl transition-all animate-in slide-in-from-left duration-300">
+            {renderSidebarBody(true)}
+          </aside>
+        </div>
+      )}
+    </>
   );
 };

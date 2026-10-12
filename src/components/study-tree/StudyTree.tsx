@@ -123,7 +123,7 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
   return (
     <div className="flex-1 h-full flex flex-col bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans select-none">
       {/* Plan Header */}
-      <div className="p-5 border-b-2 border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 backdrop-blur-sm space-y-4 shrink-0 relative z-20">
+      <div className="p-3.5 sm:p-5 border-b-2 border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 backdrop-blur-sm space-y-3 sm:space-y-4 shrink-0 relative z-20">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -276,7 +276,7 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
       </div>
 
       {/* Hierarchical Knowledge Tree View */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-3">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3">
         {filteredMaterias.length > 0 ? (
           filteredMaterias.map((materia) => (
             <SubjectNode

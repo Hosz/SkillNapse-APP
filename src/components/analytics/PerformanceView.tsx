@@ -180,9 +180,9 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano, onNavig
       : null;
 
   return (
-    <div className="flex-1 h-full flex flex-col md:flex-row bg-slate-50 dark:bg-zinc-950 overflow-hidden font-sans select-none text-zinc-900 dark:text-zinc-100 print:h-auto print:overflow-visible print:bg-white print:text-black print:select-auto print:p-0">
+    <div className="flex-1 h-full flex flex-col md:flex-row bg-slate-50 dark:bg-zinc-950 overflow-y-auto md:overflow-hidden font-sans select-none text-zinc-900 dark:text-zinc-100 print:h-auto print:overflow-visible print:bg-white print:text-black print:select-auto print:p-0">
       {/* Left Column: Key Analytics & Readiness Score */}
-      <div className="flex-1 flex flex-col h-full border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto p-6 space-y-6 print:h-auto print:overflow-visible print:p-6 print:border-none">
+      <div className="flex-1 flex flex-col h-auto md:h-full border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 overflow-visible md:overflow-y-auto p-4 sm:p-6 space-y-6 print:h-auto print:overflow-visible print:p-6 print:border-none shrink-0">
         {/* Executive Print-Only Header */}
         <div className="hidden print:block border-b-2 border-zinc-800 pb-4 mb-6 text-black">
           <div className="flex items-center justify-between">
@@ -383,7 +383,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ plano, onNavig
       </div>
 
       {/* Right Column: High Priority Critical Topics */}
-      <div className="w-full md:w-[450px] bg-white dark:bg-zinc-950 p-6 border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto space-y-4 print:w-full print:border-none print:h-auto print:overflow-visible print:p-6 print:mt-4 print:break-inside-avoid">
+      <div className="w-full md:w-[450px] bg-white dark:bg-zinc-950 p-4 sm:p-6 border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-800 overflow-visible md:overflow-y-auto space-y-4 shrink-0 print:w-full print:border-none print:h-auto print:overflow-visible print:p-6 print:mt-4 print:break-inside-avoid">
         <div>
           <div className="text-xs font-mono text-rose-600 dark:text-red-400 flex items-center gap-1.5 uppercase font-semibold print:text-red-700">
             <AlertOctagon className="w-4 h-4" /> Ação Imediata Recomendada

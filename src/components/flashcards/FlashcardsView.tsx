@@ -543,7 +543,7 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
   const currentCard = activeStudyList[currentIndex];
 
   return (
-    <div className="flex-1 h-full flex flex-col bg-slate-50 dark:bg-zinc-950 overflow-y-auto select-none font-sans p-6 sm:p-8 space-y-6 text-zinc-900 dark:text-zinc-100">
+    <div className="flex-1 h-full flex flex-col bg-slate-50 dark:bg-zinc-950 overflow-y-auto select-none font-sans p-4 sm:p-8 space-y-5 sm:space-y-6 text-zinc-900 dark:text-zinc-100">
       {/* 1. Header Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b-2 border-zinc-200 dark:border-zinc-800">
         <div>
