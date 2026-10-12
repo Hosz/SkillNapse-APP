@@ -1,9 +1,19 @@
-import { ApiService } from './api';
+import { ApiService, isAbortError } from './api';
 import type { TemaRedacao } from '../types';
 
 export interface SubmissaoTextoPayload {
   temaRedacaoId: string;
-  conteudoTexto: string;
+  conteudoTexto?: string;
+  textoAluno?: string;
+}
+
+export interface CriarTemaManualPayload {
+  planoEstudoId?: string;
+  titulo: string;
+  eixoTematico?: string;
+  descricao?: string;
+  textosMotivadores: string | string[];
+  criteriosAvaliacao?: string;
 }
 
 export interface CriterionEvaluation {
@@ -330,12 +340,13 @@ export const redacaoService = {
     }
   },
 
-  async gerarTemaAi(eixoTematico?: string): Promise<TemaRedacao | null> {
+  async gerarTemaAi(eixoTematico?: string, signal?: AbortSignal): Promise<TemaRedacao | null> {
     const eixo = eixoTematico?.trim() || 'Direito Constitucional e Políticas Públicas';
 
     try {
       const res = await ApiService.request<BackendTemaRedacao>('/redacoes/temas/gerar', {
         method: 'POST',
+        signal,
         body: JSON.stringify({ eixoTematico: eixo }),
       });
 
@@ -346,6 +357,9 @@ export const redacaoService = {
       }
       return null;
     } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
       console.error('Erro ao gerar tema com IA no backend:', error);
       throw error;
     }
@@ -438,10 +452,15 @@ export const redacaoService = {
     return true;
   },
 
-  async submeterTexto(payload: SubmissaoTextoPayload): Promise<EvaluationResult | null> {
+  async submeterTexto(payload: SubmissaoTextoPayload, signal?: AbortSignal): Promise<EvaluationResult | null> {
+    const textoFinal = (payload.textoAluno || payload.conteudoTexto || '').trim();
     const res = await ApiService.request<BackendSubmissaoRedacao>('/redacoes/submissoes', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      signal,
+      body: JSON.stringify({
+        temaRedacaoId: payload.temaRedacaoId,
+        textoAluno: textoFinal,
+      }),
     });
 
     if (res && (res.notaGeral !== undefined || res.feedback)) {
@@ -450,13 +469,14 @@ export const redacaoService = {
     return null;
   },
 
-  async submeterFoto(temaId: string, imageFile: File): Promise<EvaluationResult | null> {
+  async submeterFoto(temaId: string, imageFile: File, signal?: AbortSignal): Promise<EvaluationResult | null> {
     const formData = new FormData();
     formData.append('temaRedacaoId', temaId);
     formData.append('imagem', imageFile);
 
     const res = await ApiService.request<BackendResultadoImagem>('/redacoes/submissoes/imagem', {
       method: 'POST',
+      signal,
       body: formData,
     });
 
@@ -502,6 +522,58 @@ export const redacaoService = {
     } catch (err) {
       console.error('Erro ao obter submissão de redação:', err);
       return null;
+    }
+  },
+
+  async criarTemaManual(dados: CriarTemaManualPayload): Promise<TemaRedacao> {
+    const textosMotivadoresArray = Array.isArray(dados.textosMotivadores)
+      ? dados.textosMotivadores.filter((t) => t.trim().length > 0)
+      : [dados.textosMotivadores];
+    const motivadoresFormatados = textosMotivadoresArray.join('\n\n---\n\n');
+
+    let novoId = `custom-${Date.now()}`;
+
+    try {
+      const backendTema = await ApiService.request<BackendTemaRedacao>('/redacoes/temas', {
+        method: 'POST',
+        body: JSON.stringify({
+          planoEstudoId: dados.planoEstudoId,
+          titulo: dados.titulo.trim(),
+          descricao: dados.descricao?.trim() || undefined,
+          textosMotivadores: motivadoresFormatados,
+          criteriosAvaliacao: dados.criteriosAvaliacao?.trim() || undefined,
+        }),
+      });
+      if (backendTema?.id) {
+        novoId = String(backendTema.id);
+      }
+    } catch (err) {
+      console.warn('Backend indisponível para criar tema, persistindo localmente:', err);
+    }
+
+    const temaCriado: TemaRedacao = {
+      id: novoId,
+      titulo: dados.titulo.trim(),
+      descricao: dados.descricao?.trim() || '',
+      eixoTematico: dados.eixoTematico?.trim() || 'Geral',
+      textosMotivadores: textosMotivadoresArray.length > 0 ? textosMotivadoresArray : ['Texto de apoio fornecido pelo estudante.'],
+      criteriosAvaliacao: dados.criteriosAvaliacao?.trim() || undefined,
+      geradoPorIa: false,
+    };
+
+    this.salvarLocalmente(temaCriado);
+    return temaCriado;
+  },
+
+  async apagarSubmissao(submissaoId: string): Promise<boolean> {
+    try {
+      await ApiService.request(`/redacoes/submissoes/${submissaoId}`, {
+        method: 'DELETE',
+      });
+      return true;
+    } catch (err) {
+      console.error('Erro ao excluir submissão de redação:', err);
+      return false;
     }
   },
 };

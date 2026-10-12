@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   Camera,
@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  XCircle,
   FileSearch,
   Edit2,
   Trash2,
@@ -23,7 +24,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { redacaoService } from '../../services';
-import { isQuotaExceededError } from '../../services/api';
+import { isQuotaExceededError, isAbortError } from '../../services/api';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { useToast } from '../../context/useToast';
 import type { SubmissaoRedacaoResumo } from '../../services/redacaoService';
@@ -79,6 +80,22 @@ export const EssayLabView: React.FC = () => {
   const [editCriteriosAvaliacao, setEditCriteriosAvaliacao] = useState('');
   const [activeEditMotivatorTab, setActiveEditMotivatorTab] = useState<number>(0);
   const [isSavingEditTema, setIsSavingEditTema] = useState(false);
+
+  // Estados do Modal de Criação Manual de Tema
+  const [isCreateThemeModalOpen, setIsCreateThemeModalOpen] = useState(false);
+  const [createTitulo, setCreateTitulo] = useState('');
+  const [createEixoTematico, setCreateEixoTematico] = useState('Direito Constitucional e Políticas Públicas');
+  const [createDescricao, setCreateDescricao] = useState('');
+  const [createTextosMotivadores, setCreateTextosMotivadores] = useState<string[]>([
+    '### TEXTO I: Panorama e Fundamentação\n\nInsira os dados, citações legislativas ou considerações da banca examinadora...\n\nFonte: Legislação / Dados Oficiais, 2024.',
+  ]);
+  const [createCriteriosAvaliacao, setCreateCriteriosAvaliacao] = useState('');
+  const [activeCreateMotivatorTab, setActiveCreateMotivatorTab] = useState<number>(0);
+  const [isSavingCreateTema, setIsSavingCreateTema] = useState(false);
+
+  // Estados de Exclusão de Submissão do Histórico
+  const [submissaoParaExcluir, setSubmissaoParaExcluir] = useState<SubmissaoRedacaoResumo | null>(null);
+  const [isExcluindoSubmissao, setIsExcluindoSubmissao] = useState(false);
 
   const carregarHistorico = async () => {
     setIsLoadingHistory(true);
@@ -153,11 +170,54 @@ export const EssayLabView: React.FC = () => {
     setActiveSubmissaoId(null);
   };
 
+  const themeAbortRef = useRef<AbortController | null>(null);
+  const evalAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (themeAbortRef.current) {
+        themeAbortRef.current.abort();
+        themeAbortRef.current = null;
+      }
+      if (evalAbortRef.current) {
+        evalAbortRef.current.abort();
+        evalAbortRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleCancelarGeracaoTema = () => {
+    if (themeAbortRef.current) {
+      themeAbortRef.current.abort();
+      themeAbortRef.current = null;
+      toast.info('Geração de proposta cancelada.');
+    }
+    setIsGeneratingTema(false);
+  };
+
+  const fecharModalTemaOuCancelar = () => {
+    if (isGeneratingTema) {
+      handleCancelarGeracaoTema();
+    }
+    setIsThemeModalOpen(false);
+  };
+
+  const handleCancelarCorrecao = () => {
+    if (evalAbortRef.current) {
+      evalAbortRef.current.abort();
+      evalAbortRef.current = null;
+      toast.info('Correção de redação cancelada.');
+    }
+    setIsEvaluating(false);
+  };
+
   const handleGerarTema = async (eixoEscolhido?: string) => {
+    const controller = new AbortController();
+    themeAbortRef.current = controller;
     setIsGeneratingTema(true);
     const eixo = eixoEscolhido || customEixo;
     try {
-      const novoTema = await redacaoService.gerarTemaAi(eixo);
+      const novoTema = await redacaoService.gerarTemaAi(eixo, controller.signal);
       if (novoTema) {
         setTemas((prev) => [novoTema, ...prev.filter((t) => t.id !== novoTema.id)]);
         setSelectedTema(novoTema);
@@ -166,12 +226,16 @@ export const EssayLabView: React.FC = () => {
         setIsThemeModalOpen(false);
       }
     } catch (err: unknown) {
+      if (isAbortError(err)) {
+        return;
+      }
       console.error('Erro ao gerar tema com IA:', err);
       if (isQuotaExceededError(err)) {
         return;
       }
       toast.error('Não foi possível gerar a proposta com a IA. Certifique-se de que o backend está online.');
     } finally {
+      themeAbortRef.current = null;
       setIsGeneratingTema(false);
     }
   };
@@ -266,11 +330,86 @@ export const EssayLabView: React.FC = () => {
     }
   };
 
+  const handleOpenCreateTemaManual = () => {
+    setCreateTitulo('');
+    setCreateEixoTematico('Direito Constitucional e Políticas Públicas');
+    setCreateDescricao('');
+    setCreateTextosMotivadores([
+      '### TEXTO I: Panorama e Fundamentação\n\nInsira os dados, citações legislativas ou considerações da banca examinadora...\n\nFonte: Legislação / Dados Oficiais, 2024.',
+    ]);
+    setCreateCriteriosAvaliacao('');
+    setActiveCreateMotivatorTab(0);
+    setIsCreateThemeModalOpen(true);
+  };
+
+  const handleSaveCreateTemaManual = async () => {
+    if (!createTitulo.trim()) {
+      toast.warning('Por favor, informe o título da proposta de redação.');
+      return;
+    }
+    if (!createEixoTematico.trim()) {
+      toast.warning('Por favor, informe o eixo temático da proposta.');
+      return;
+    }
+
+    setIsSavingCreateTema(true);
+    try {
+      const limposTextos = createTextosMotivadores
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+      const novoTema = await redacaoService.criarTemaManual({
+        titulo: createTitulo.trim(),
+        eixoTematico: createEixoTematico.trim(),
+        descricao: createDescricao.trim(),
+        textosMotivadores: limposTextos.length > 0 ? limposTextos : ['Texto de apoio fornecido pelo estudante.'],
+        criteriosAvaliacao: createCriteriosAvaliacao.trim() || undefined,
+      });
+
+      setTemas((prev) => [novoTema, ...prev]);
+      setSelectedTema(novoTema);
+      setIsCreateThemeModalOpen(false);
+      setSuccessToast(`Proposta "${novoTema.titulo}" criada com sucesso!`);
+      setTimeout(() => setSuccessToast(null), 4500);
+    } catch (err) {
+      console.error('Erro ao criar tema manual:', err);
+      toast.error('Erro ao cadastrar a proposta de redação. Tente novamente.');
+    } finally {
+      setIsSavingCreateTema(false);
+    }
+  };
+
+  const handleConfirmarExclusaoSubmissao = async () => {
+    if (!submissaoParaExcluir) return;
+    setIsExcluindoSubmissao(true);
+    try {
+      const ok = await redacaoService.apagarSubmissao(submissaoParaExcluir.id);
+      if (ok) {
+        setSubmissoes((prev) => prev.filter((s) => s.id !== submissaoParaExcluir.id));
+        if (activeSubmissaoId === submissaoParaExcluir.id) {
+          setActiveSubmissaoId(null);
+          setEvaluationResult(null);
+        }
+        toast.success('Redação removida do histórico com sucesso.');
+      } else {
+        toast.error('Não foi possível excluir a redação do histórico.');
+      }
+      setSubmissaoParaExcluir(null);
+    } catch (err) {
+      console.error('Erro ao apagar submissão:', err);
+      toast.error('Não foi possível excluir a redação do histórico.');
+    } finally {
+      setIsExcluindoSubmissao(false);
+    }
+  };
+
   const characterCount = essayText.length;
   const isCharacterCountValid = characterCount >= 300 && characterCount <= 5000;
 
   const handleSubmit = async () => {
     if (!selectedTema) return;
+    const controller = new AbortController();
+    evalAbortRef.current = controller;
     setIsEvaluating(true);
     let result: EvaluationResult | null = null;
 
@@ -279,9 +418,19 @@ export const EssayLabView: React.FC = () => {
         result = await redacaoService.submeterTexto({
           temaRedacaoId: selectedTema.id,
           conteudoTexto: essayText,
-        });
+          textoAluno: essayText,
+        }, controller.signal);
       } else if (selectedPhoto) {
-        result = await redacaoService.submeterFoto(selectedTema.id, selectedPhoto);
+        result = await redacaoService.submeterFoto(selectedTema.id, selectedPhoto, controller.signal);
+      } else if (essayText.trim().length >= 300) {
+        result = await redacaoService.submeterTexto({
+          temaRedacaoId: selectedTema.id,
+          conteudoTexto: essayText,
+          textoAluno: essayText,
+        }, controller.signal);
+      } else {
+        toast.warning('Envie uma imagem legível da sua folha ou digite o texto da redação.');
+        return;
       }
 
       if (result && result.notaGeral !== undefined) {
@@ -291,12 +440,16 @@ export const EssayLabView: React.FC = () => {
         toast.error('A correção não pôde ser concluída pela IA. Tente novamente.');
       }
     } catch (err: unknown) {
+      if (isAbortError(err)) {
+        return;
+      }
       console.error('Erro ao submeter redação para IA:', err);
       if (isQuotaExceededError(err)) {
         return;
       }
       toast.error('Ocorreu um erro ao processar a correção analítica por IA.');
     } finally {
+      evalAbortRef.current = null;
       setIsEvaluating(false);
     }
   };
@@ -304,7 +457,7 @@ export const EssayLabView: React.FC = () => {
   const handleSimulatePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedPhoto(e.target.files[0]);
-      setOcrReadability(89.5); // >= 85% readability
+      setOcrReadability(96.5); // >= 95% readability
     }
   };
 
@@ -366,6 +519,15 @@ export const EssayLabView: React.FC = () => {
                 ) : (
                   <span className="text-xs text-zinc-400">Nenhum tema cadastrado</span>
                 )}
+                <button
+                  type="button"
+                  onClick={handleOpenCreateTemaManual}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white border-2 border-zinc-200 dark:border-zinc-800 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                  title="Criar proposta de tema manualmente"
+                >
+                  <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Tema Manual</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsThemeModalOpen(true)}
@@ -563,7 +725,7 @@ export const EssayLabView: React.FC = () => {
                   Foto da Folha de Resposta Manuscrita
                 </h3>
                 <p className="text-[11px] text-zinc-500 mt-1 max-w-sm">
-                  Tire uma foto bem iluminada da sua redação. A caligrafia necessita de pelo menos 85% de legibilidade calculada pelo modelo visual.
+                  Tire uma foto bem iluminada da sua redação. A caligrafia necessita de pelo menos 95% de legibilidade calculada pelo modelo visual.
                 </p>
               </div>
 
@@ -576,13 +738,13 @@ export const EssayLabView: React.FC = () => {
 
               {ocrReadability !== null && (
                 <div className="w-full max-w-md text-left">
-                  {ocrReadability < 85 ? (
+                  {ocrReadability < 95 ? (
                     <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-500/40 text-xs text-amber-800 dark:text-amber-200 space-y-2">
                       <div className="font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
                         <span>⚠️ Nitidez insuficiente ({ocrReadability}%)</span>
                       </div>
                       <p className="text-[11px] text-zinc-600 dark:text-zinc-300 leading-relaxed font-sans">
-                        A imagem enviada não atingiu o limiar de 85% de legibilidade calculada pela IA. Recomendamos tirar uma foto mais clara e plana ou digitar a redação manualmente.
+                        A imagem enviada não atingiu o limiar de 95% de legibilidade calculada pela IA. Recomendamos tirar uma foto mais clara e plana ou digitar a redação manualmente.
                       </p>
                       <div className="flex items-center gap-2 pt-1">
                         <button
@@ -610,7 +772,7 @@ export const EssayLabView: React.FC = () => {
                   ) : (
                     <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span>Taxa de legibilidade aprovada: {ocrReadability}% (Limiar mínimo: 85%). Folha pronta para avaliação.</span>
+                      <span>Taxa de legibilidade aprovada: {ocrReadability}% (Limiar mínimo: 95%). Folha pronta para avaliação.</span>
                     </div>
                   )}
                 </div>
@@ -621,18 +783,24 @@ export const EssayLabView: React.FC = () => {
           {/* Submit Action */}
           <div className="pt-4 border-t border-zinc-200 dark:border-zinc-900 flex justify-end">
             <button
-              onClick={handleSubmit}
+              type="button"
+              onClick={isEvaluating ? handleCancelarCorrecao : handleSubmit}
               disabled={
-                isEvaluating ||
-                !selectedTema ||
-                (submissionMode === 'TEXT' && !isCharacterCountValid) ||
-                (submissionMode === 'OCR' && !selectedPhoto)
+                !isEvaluating && (
+                  !selectedTema ||
+                  (submissionMode === 'TEXT' && !isCharacterCountValid) ||
+                  (submissionMode === 'OCR' && !selectedPhoto)
+                )
               }
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+              className={
+                isEvaluating
+                  ? 'px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-md shadow-red-600/20 cursor-pointer animate-pulse'
+                  : 'px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 cursor-pointer'
+              }
             >
               {isEvaluating ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Corrigindo via IA...
+                  <XCircle className="w-4 h-4" /> Cancelar Correção
                 </>
               ) : (
                 <>
@@ -745,8 +913,8 @@ export const EssayLabView: React.FC = () => {
               </h3>
               <button
                 type="button"
-                onClick={() => setIsThemeModalOpen(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                onClick={fecharModalTemaOuCancelar}
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
               >
                 ✕
               </button>
@@ -797,20 +965,24 @@ export const EssayLabView: React.FC = () => {
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
               <button
                 type="button"
-                onClick={() => setIsThemeModalOpen(false)}
-                className="px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+                onClick={fecharModalTemaOuCancelar}
+                className="px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="button"
-                disabled={isGeneratingTema || !customEixo.trim()}
-                onClick={() => handleGerarTema(customEixo)}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
+                disabled={!isGeneratingTema && !customEixo.trim()}
+                onClick={isGeneratingTema ? handleCancelarGeracaoTema : () => handleGerarTema(customEixo)}
+                className={
+                  isGeneratingTema
+                    ? 'px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold flex items-center gap-2 shadow-md shadow-red-600/20 cursor-pointer animate-pulse'
+                    : 'px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer'
+                }
               >
                 {isGeneratingTema ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Gerando Proposta...
+                    <XCircle className="w-3.5 h-3.5" /> Cancelar Geração
                   </>
                 ) : (
                   <>
@@ -1028,6 +1200,207 @@ export const EssayLabView: React.FC = () => {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Criação Manual de Tema de Redação */}
+      {isCreateThemeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-2xl max-h-[90vh] rounded-3xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95">
+            {/* Header do Modal */}
+            <div className="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-50/80 dark:bg-zinc-900/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/80 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                    Nova Proposta de Redação Manual
+                  </h3>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                    Cadastre seu próprio tema, com textos de apoio e critérios de correção.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCreateThemeModalOpen(false)}
+                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Corpo do Formulário com Scroll */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+              {/* Título */}
+              <div>
+                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-semibold block mb-1">
+                  Título da Proposta: <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={createTitulo}
+                  onChange={(e) => setCreateTitulo(e.target.value)}
+                  placeholder="Ex: O Desafio da Inteligência Artificial no Mercado de Trabalho..."
+                  className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border-2 border-zinc-200 dark:border-zinc-800 text-xs sm:text-sm font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 shadow-2xs"
+                />
+              </div>
+
+              {/* Eixo Temático */}
+              <div>
+                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-semibold block mb-1">
+                  Eixo Temático: <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={createEixoTematico}
+                  onChange={(e) => setCreateEixoTematico(e.target.value)}
+                  placeholder="Ex: Tecnologia e Sociedade, Meio Ambiente, Direito Constitucional..."
+                  className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 shadow-2xs"
+                />
+              </div>
+
+              {/* Descrição / Problematização */}
+              <div>
+                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-semibold block mb-1">
+                  Descrição / Contextualização da Banca:
+                </label>
+                <textarea
+                  rows={3}
+                  value={createDescricao}
+                  onChange={(e) => setCreateDescricao(e.target.value)}
+                  placeholder="Apresente os comandos da banca, instruções ou a tese central a ser debatida..."
+                  className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 shadow-2xs leading-relaxed"
+                />
+              </div>
+
+              {/* Textos Motivadores */}
+              <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-[11px] font-mono uppercase tracking-wider text-indigo-700 dark:text-indigo-400 font-bold block">
+                      Textos de Apoio / Motivadores ({createTextosMotivadores.length})
+                    </label>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                      Adicione quantos textos de apoio desejar para orientar o estudante.
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateTextosMotivadores((prev) => [
+                        ...prev,
+                        `### TEXTO ${prev.length + 1}: Novo Documento\n\nDigite os dados ou citações aqui...\n\nFonte: Fonte oficial, 2024.`,
+                      ]);
+                      setActiveCreateMotivatorTab(createTextosMotivadores.length);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Adicionar Texto</span>
+                  </button>
+                </div>
+
+                {/* Abas dos Textos de Apoio */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                  {createTextosMotivadores.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setActiveCreateMotivatorTab(idx)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${
+                        activeCreateMotivatorTab === idx
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
+                      }`}
+                    >
+                      <span>Texto {idx + 1}</span>
+                      {createTextosMotivadores.length > 1 && (
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const novoArray = createTextosMotivadores.filter((_, i) => i !== idx);
+                            setCreateTextosMotivadores(novoArray);
+                            setActiveCreateMotivatorTab(Math.max(0, idx - 1));
+                          }}
+                          className="hover:text-rose-300 ml-0.5"
+                          title="Remover este texto de apoio"
+                        >
+                          ×
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Área de Edição do Texto de Apoio Selecionado */}
+                {createTextosMotivadores[activeCreateMotivatorTab] !== undefined && (
+                  <div className="space-y-1.5">
+                    <textarea
+                      rows={6}
+                      value={createTextosMotivadores[activeCreateMotivatorTab]}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCreateTextosMotivadores((prev) =>
+                          prev.map((t, i) => (i === activeCreateMotivatorTab ? val : t))
+                        );
+                      }}
+                      placeholder="### TEXTO I: Título do Documento&#10;&#10;Conteúdo motivador com estatísticas, marcos legais ou reflexões...&#10;&#10;Fonte: Nome da Instituição / Ano."
+                      className="w-full px-3 py-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-950 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 font-mono leading-relaxed"
+                    />
+                    <div className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                      💡 <strong>Dica de Formatação:</strong> Linhas iniciadas com <code>### TÍTULO</code> são formatadas como cabeçalho no leitor. Linhas iniciadas com <code>Fonte: ...</code> aparecem como citação bibliográfica.
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Critérios de Avaliação Opcionais */}
+              <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-semibold block mb-1">
+                  Critérios de Avaliação da Banca (Opcional):
+                </label>
+                <textarea
+                  rows={2}
+                  value={createCriteriosAvaliacao}
+                  onChange={(e) => setCreateCriteriosAvaliacao(e.target.value)}
+                  placeholder="Ex: Tópico 1 (40 pts) - Princípio da eficiência; Tópico 2 (30 pts) - Controle social..."
+                  className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* Rodapé do Modal */}
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-end gap-2 shrink-0 bg-zinc-50/80 dark:bg-zinc-900/80">
+              <button
+                type="button"
+                onClick={() => setIsCreateThemeModalOpen(false)}
+                className="px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isSavingCreateTema}
+                onClick={handleSaveCreateTemaManual}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 cursor-pointer transition-all"
+              >
+                {isSavingCreateTema ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Criando...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Cadastrar Tema</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -1343,6 +1716,17 @@ export const EssayLabView: React.FC = () => {
                           )}
                           <span>Abrir</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSubmissaoParaExcluir(sub);
+                          }}
+                          className="p-1.5 rounded-xl bg-white dark:bg-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 border border-zinc-200 dark:border-zinc-700 hover:border-rose-300 dark:hover:border-rose-800 text-xs font-medium transition-colors cursor-pointer"
+                          title="Excluir redação do histórico"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -1385,6 +1769,20 @@ export const EssayLabView: React.FC = () => {
         onConfirm={handleConfirmarExclusaoTema}
         onClose={() => {
           if (!isExcluindoTema) setTemaParaExcluir(null);
+        }}
+      />
+
+      {/* Modal de Confirmação para Excluir Submissão do Histórico */}
+      <ConfirmModal
+        isOpen={submissaoParaExcluir !== null}
+        title="Excluir Redação do Histórico"
+        description={`Deseja realmente apagar a correção desta redação sobre "${submissaoParaExcluir?.temaTitulo}"? Esta ação removerá a pontuação e os pareceres analíticos associados.`}
+        confirmLabel="Excluir Redação"
+        variant="danger"
+        isLoading={isExcluindoSubmissao}
+        onConfirm={handleConfirmarExclusaoSubmissao}
+        onClose={() => {
+          if (!isExcluindoSubmissao) setSubmissaoParaExcluir(null);
         }}
       />
     </div>

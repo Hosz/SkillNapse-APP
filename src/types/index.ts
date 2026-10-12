@@ -157,6 +157,7 @@ export interface TemaRedacao {
   eixoTematico: string;
   textosMotivadores: string[];
   criteriosAvaliacao?: string;
+  geradoPorIa?: boolean;
 }
 
 export interface CriterioAvaliacaoRedacao {
