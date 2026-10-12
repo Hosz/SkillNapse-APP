@@ -73,6 +73,11 @@ export interface Flashcard {
   intervaloDias: number;
   repeticoes: number;
   proximaRevisao: string;
+  planoId?: string;
+  materiaId?: string;
+  materiaNome?: string;
+  topicoNome?: string;
+  subtopicoNome?: string;
 }
 
 export interface BlocoCronograma {
@@ -81,6 +86,7 @@ export interface BlocoCronograma {
   horaInicio: string;
   horaFim: string;
   tipoBloco: TipoBloco;
+  titulo?: string;
   materiaId?: string;
   materiaNome?: string;
   topicoId?: string;
@@ -89,12 +95,68 @@ export interface BlocoCronograma {
   anotacoes?: string;
 }
 
+export type TipoOrigemBloco = 'TEMPLATE' | 'EXCECAO';
+export type TipoAcaoExcecao = 'CANCELAR_BLOCO' | 'SUBSTITUIR_HORARIO' | 'BLOCO_AVULSO';
+
+export interface BlocoAgendaDiaria {
+  id: string;
+  origem: TipoOrigemBloco;
+  tipoAcaoExcecao?: TipoAcaoExcecao | null;
+  blocoTemplateOrigemId?: string | null;
+  excecaoId?: string | null;
+  horaInicio: string;
+  horaFim: string;
+  tipoBloco: TipoBloco;
+  titulo?: string;
+  materiaId?: string | null;
+  materiaNome?: string | null;
+  topicoId?: string | null;
+  topicoTitulo?: string | null;
+  topicosRevisao?: Array<{
+    id: string;
+    titulo: string;
+    materiaId?: string | null;
+    materiaNome?: string | null;
+  }>;
+}
+
+export interface AgendaDiaria {
+  data: string; // YYYY-MM-DD
+  diaSemana: DiaSemana;
+  templateOrigemId?: string | null;
+  templateOrigemNome?: string | null;
+  blocos: BlocoAgendaDiaria[];
+}
+
+export interface RegistrarExcecaoPayload {
+  tipoAcao: TipoAcaoExcecao;
+  blocoTemplateOrigem?: string;
+  horaInicio?: string;
+  horaFim?: string;
+  tipoBloco?: TipoBloco;
+  materiaId?: string;
+  topicoId?: string;
+  titulo?: string;
+}
+
+export interface EditarExcecaoPayload {
+  tipoAcao?: TipoAcaoExcecao;
+  blocoTemplateOrigem?: string;
+  horaInicio?: string;
+  horaFim?: string;
+  tipoBloco?: TipoBloco;
+  materiaId?: string;
+  topicoId?: string;
+  titulo?: string;
+}
+
 export interface TemaRedacao {
   id: string;
   titulo: string;
   descricao: string;
   eixoTematico: string;
   textosMotivadores: string[];
+  criteriosAvaliacao?: string;
 }
 
 export interface CriterioAvaliacaoRedacao {

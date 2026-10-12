@@ -18,8 +18,8 @@ export const gamificacaoService = {
       return await ApiService.request<OfensivaResponse>('/gamificacao/ofensiva');
     } catch {
       return {
-        totalDiasConsecutivos: 14,
-        ativoHoje: true,
+        totalDiasConsecutivos: 0,
+        ativoHoje: false,
       };
     }
   },
@@ -29,9 +29,9 @@ export const gamificacaoService = {
       return await ApiService.request<MetasProgressoResponse>('/gamificacao/metas/progresso');
     } catch {
       return {
-        minutosMetaDiaria: 180, // 3h
-        minutosEstudadosHoje: 165, // 2h 45m
-        percentualConcluido: 91.6,
+        minutosMetaDiaria: 180, // Meta diária de 3h padrão
+        minutosEstudadosHoje: 0,
+        percentualConcluido: 0,
       };
     }
   },

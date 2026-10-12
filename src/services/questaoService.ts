@@ -41,4 +41,29 @@ export const questaoService = {
       return null;
     }
   },
+
+  async criarQuestao(payload: {
+    topicoId?: string;
+    enunciado: string;
+    dificuldade?: 'FACIL' | 'MEDIA' | 'DIFICIL';
+    banca?: string;
+    ano?: number;
+    assuntoGeral?: string;
+    topicoReferencia?: string;
+    explicacaoGabarito?: string;
+    alternativas: Array<{
+      letra: 'A' | 'B' | 'C' | 'D' | 'E';
+      texto: string;
+      correta: boolean;
+    }>;
+  }): Promise<Questao | null> {
+    try {
+      return await ApiService.request<Questao>('/questoes', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      return null;
+    }
+  },
 };

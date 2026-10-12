@@ -23,6 +23,8 @@ export interface RascunhoEditalResponse {
   planoEstudoId?: string | null;
   status: 'PROCESSANDO' | 'AGUARDANDO_APROVACAO' | 'CONVERTIDO' | 'ERRO';
   conteudo: EditalArvoreEstruturada;
+  cargosDisponiveis?: string[];
+  precisaSelecionarCargo?: boolean;
   criadoEm: string;
 }
 
@@ -39,7 +41,22 @@ export interface ConversaoEditalResponse {
   totalTopicosCriados: number;
 }
 
+export interface EditalCargosDetectados {
+  nomeConcurso: string;
+  cargos: string[];
+}
+
 export const editalService = {
+  async detectarCargos(file: File): Promise<EditalCargosDetectados> {
+    const formData = new FormData();
+    formData.append('arquivo', file);
+
+    return await ApiService.request<EditalCargosDetectados>('/editais/detectar-cargos', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
   async parseEdital(file: File, cargoAlvo?: string): Promise<RascunhoEditalResponse> {
     const formData = new FormData();
     formData.append('arquivo', file);

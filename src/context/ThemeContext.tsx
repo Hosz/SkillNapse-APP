@@ -11,10 +11,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('skillnapse_theme', theme);
     const root = document.documentElement;
     if (theme === 'light') {
-      root.classList.add('theme-light');
+      root.classList.remove('dark');
       root.classList.remove('theme-dark');
+      root.classList.add('light');
+      root.classList.add('theme-light');
     } else {
+      root.classList.add('dark');
       root.classList.add('theme-dark');
+      root.classList.remove('light');
       root.classList.remove('theme-light');
     }
   }, [theme]);

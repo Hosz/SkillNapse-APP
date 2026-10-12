@@ -47,8 +47,8 @@ export const sessaoService = {
       return await ApiService.request<ResumoSessoesResponse>('/sessoes-estudo/resumo');
     } catch {
       return {
-        totalSegundosEstudados: 9900, // 2h 45m
-        totalSessoesConcluidas: 4,
+        totalSegundosEstudados: 0,
+        totalSessoesConcluidas: 0,
       };
     }
   },

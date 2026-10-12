@@ -1,4 +1,4 @@
-import { ApiService } from './api';
+import { ApiService, isTokenExpired } from './api';
 
 export interface LoginPayload {
   email: string;
@@ -77,13 +77,54 @@ export const authService = {
   async obterUsuarioAtual(): Promise<UsuarioMe | null> {
     try {
       const saved = localStorage.getItem('skillnapse_user');
-      return saved ? JSON.parse(saved) : { id: 'usr-1', nome: 'Hokyozu', email: 'hokyozu@skillnapse.com' };
+      return saved ? JSON.parse(saved) : null;
     } catch {
-      return { id: 'usr-1', nome: 'Hokyozu', email: 'hokyozu@skillnapse.com' };
+      return null;
+    }
+  },
+
+  async verificarSessao(): Promise<UsuarioMe | null> {
+    let token = ApiService.getToken();
+    const refreshToken = ApiService.getRefreshToken();
+
+    // Se não há token e nem refresh token, a sessão realmente não existe
+    if (!token && !refreshToken) {
+      this.logout();
+      return null;
+    }
+
+    // Se o token estiver expirado ou ausente mas temos refresh token, renova proativamente
+    if ((!token || isTokenExpired(token, 30)) && refreshToken) {
+      const novoToken = await ApiService.refreshAccessToken();
+      if (!novoToken) {
+        this.logout();
+        return null;
+      }
+      token = novoToken;
+    }
+
+    try {
+      const me = await ApiService.request<UsuarioMe>('/auth/me');
+      if (me && me.email) {
+        const saved = localStorage.getItem('skillnapse_user');
+        const current = saved ? JSON.parse(saved) : {};
+        const merged = { ...current, id: me.id, email: me.email, nome: me.nome || current.nome };
+        localStorage.setItem('skillnapse_user', JSON.stringify(merged));
+        return merged;
+      }
+      this.logout();
+      return null;
+    } catch {
+      this.logout();
+      return null;
     }
   },
 
   logout() {
     ApiService.clearTokens();
+    try {
+      localStorage.removeItem('skillnapse_user');
+    } catch {}
+    window.dispatchEvent(new CustomEvent('skillnapse:unauthorized'));
   },
 };
