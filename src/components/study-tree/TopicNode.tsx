@@ -8,27 +8,46 @@ import {
   Edit2,
   Trash2,
   MoreVertical,
+  X,
+  Award,
+  Layers,
 } from 'lucide-react';
 import type { Topico } from '../../types';
 
 interface TopicNodeProps {
   topic: Topico;
   level?: number;
+  parentTopicTitle?: string;
   selectedTopicId: string | null;
   onSelectTopic: (topic: Topico) => void;
   onAddSubtopic?: (parentTopicId: string) => void;
   onEditTopic?: (topic: Topico) => void;
   onDeleteTopic?: (topicId: string) => void;
+  onPraticarSimulado?: (params: {
+    materiaId?: string;
+    topicoId: string;
+    subtopicoId?: string;
+  }) => void;
+  onPraticarFlashcards?: (params: {
+    materiaId?: string;
+    topicoId: string;
+    topicoNome: string;
+    subtopicoId?: string;
+    subtopicoNome?: string;
+  }) => void;
 }
 
 export const TopicNode: React.FC<TopicNodeProps> = ({
   topic,
   level = 0,
+  parentTopicTitle,
   selectedTopicId,
   onSelectTopic,
   onAddSubtopic,
   onEditTopic,
   onDeleteTopic,
+  onPraticarSimulado,
+  onPraticarFlashcards,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -52,14 +71,13 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
     <div className="relative">
       {/* Node Row */}
       <div
-        className={`group flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer border ${
+        className={`group flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer border-2 ${
           isSelected
             ? isSubtopic
-              ? 'bg-indigo-600/20 border-indigo-500 ring-2 ring-indigo-500 shadow-md shadow-indigo-500/25 text-white font-semibold'
-              : 'bg-zinc-800 border-indigo-500/80 shadow-md ring-1 ring-indigo-500/50 text-zinc-100 font-semibold'
-            : 'bg-zinc-900/30 hover:bg-zinc-900/80 border-zinc-800 hover:border-zinc-700 text-zinc-300'
+              ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/30 shadow-sm text-indigo-950 dark:text-white font-semibold'
+              : 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-500 ring-2 ring-indigo-500/30 shadow-sm text-zinc-900 dark:text-zinc-100 font-semibold'
+            : 'bg-white dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/90 border-zinc-200 dark:border-zinc-700/80 hover:border-zinc-300 dark:hover:border-zinc-600 text-zinc-800 dark:text-zinc-200'
         }`}
-        style={{ marginLeft: `${level * 20}px` }}
         onClick={() => onSelectTopic(topic)}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
@@ -71,7 +89,7 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
                 e.stopPropagation();
                 setIsExpanded(!isExpanded);
               }}
-              className="p-1 text-zinc-400 hover:text-zinc-100 rounded hover:bg-zinc-800 transition-colors"
+              className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             >
               {isExpanded ? (
                 <ChevronDown className="w-3.5 h-3.5" />
@@ -85,23 +103,25 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
                 className={`w-2 h-2 rounded-full transition-transform ${
                   isSelected
                     ? isSubtopic
-                      ? 'bg-indigo-400 ring-2 ring-indigo-400/50 scale-125'
-                      : 'bg-indigo-400 scale-110'
-                    : 'bg-zinc-700 group-hover:bg-zinc-500'
+                      ? 'bg-indigo-600 dark:bg-indigo-400 ring-2 ring-indigo-400/50 scale-125'
+                      : 'bg-indigo-600 dark:bg-indigo-400 scale-110'
+                    : 'bg-zinc-400 dark:bg-zinc-700 group-hover:bg-zinc-600 dark:group-hover:bg-zinc-500'
                 }`}
               />
             </div>
           )}
 
-          {/* Subtopic Distinct Indicator Badge when selected alone */}
-          {isSelected && isSubtopic && (
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-indigo-500 text-white font-extrabold tracking-wider shrink-0 shadow-sm">
-              SUBTÓPICO ATIVO
-            </span>
-          )}
-
-          {/* Topic Title */}
-          <span className={`text-xs truncate tracking-tight ${isSelected ? 'font-bold' : 'font-medium'}`}>
+          {/* Topic / Subtopic Title: Sempre visível, destacado e nítido */}
+          <span
+            className={`text-xs tracking-tight line-clamp-2 sm:line-clamp-1 min-w-0 ${
+              isSelected
+                ? isSubtopic
+                  ? 'font-bold text-indigo-900 dark:text-indigo-200'
+                  : 'font-bold text-zinc-900 dark:text-zinc-100'
+                : 'font-medium text-zinc-800 dark:text-zinc-200'
+            }`}
+            title={topic.titulo}
+          >
             {topic.titulo}
           </span>
         </div>
@@ -110,12 +130,12 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
         <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
           {/* Weight Indicator (Peso 1 a 10) */}
           <div
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-400"
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[10px] font-mono text-zinc-700 dark:text-zinc-400"
             title={`Peso no edital: ${topic.peso}/10`}
           >
             <span>P{topic.peso}</span>
             {topic.peso >= 9 && (
-              <Sparkles className="w-2.5 h-2.5 text-amber-400 fill-amber-400/20" />
+              <Sparkles className="w-2.5 h-2.5 text-amber-500 dark:text-amber-400 fill-amber-500/20" />
             )}
           </div>
 
@@ -128,25 +148,36 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
             {topic.proficiencia.slice(0, 4)}
           </span>
 
-          {/* Quick Study Button */}
+          {/* Quick Study / Desmarcar Button */}
           <button
+            type="button"
             onClick={() => onSelectTopic(topic)}
-            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 ${
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 cursor-pointer ${
               isSelected
-                ? 'bg-indigo-600 text-white font-semibold'
-                : 'opacity-0 group-hover:opacity-100 bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+                ? 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 font-semibold shadow-2xs'
+                : 'opacity-0 group-hover:opacity-100 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
             }`}
-            title="Abrir no Workpad de estudo"
+            title={isSelected ? "Desmarcar este item" : "Abrir no Workpad de estudo"}
           >
-            <BookOpen className="w-3 h-3" />
-            <span className="hidden sm:inline">Estudar</span>
+            {isSelected ? (
+              <>
+                <X className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                <span>Desmarcar</span>
+              </>
+            ) : (
+              <>
+                <BookOpen className="w-3 h-3" />
+                <span className="hidden sm:inline">Estudar</span>
+              </>
+            )}
           </button>
 
           {/* Context Dropdown / Actions */}
           <div className="relative">
             <button
+              type="button"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+              className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               title="Ações do item"
             >
               <MoreVertical className="w-3.5 h-3.5" />
@@ -154,18 +185,70 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
 
             {isMenuOpen && (
               <div
-                className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-zinc-900 border border-zinc-800 shadow-2xl p-1 z-40 space-y-0.5"
+                className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-1 z-40 space-y-0.5"
                 onMouseLeave={() => setIsMenuOpen(false)}
               >
+                {isSelected && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onSelectTopic(topic);
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 flex items-center gap-2 font-medium"
+                  >
+                    <X className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Desmarcar Seleção</span>
+                  </button>
+                )}
+
+                {onPraticarSimulado && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onPraticarSimulado({
+                        materiaId: topic.materiaId,
+                        topicoId: isSubtopic ? (topic.topicoPaiId || topic.id) : topic.id,
+                        subtopicoId: isSubtopic ? topic.id : undefined,
+                      });
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 flex items-center gap-2 font-medium"
+                  >
+                    <Award className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>Praticar Simulado</span>
+                  </button>
+                )}
+
+                {onPraticarFlashcards && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onPraticarFlashcards({
+                        materiaId: topic.materiaId,
+                        topicoId: isSubtopic ? (topic.topicoPaiId || topic.id) : topic.id,
+                        topicoNome: isSubtopic ? (parentTopicTitle || topic.titulo) : topic.titulo,
+                        subtopicoNome: isSubtopic ? topic.titulo : undefined,
+                        subtopicoId: isSubtopic ? topic.id : undefined,
+                      });
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-2 font-medium"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Praticar Flashcards</span>
+                  </button>
+                )}
+
                 {onAddSubtopic && (
                   <button
                     onClick={() => {
                       setIsMenuOpen(false);
                       onAddSubtopic(topic.id);
                     }}
-                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2"
+                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2"
                   >
-                    <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                    <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     <span>Adicionar Subtópico</span>
                   </button>
                 )}
@@ -176,9 +259,9 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
                       setIsMenuOpen(false);
                       onEditTopic(topic);
                     }}
-                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2"
+                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2"
                   >
-                    <Edit2 className="w-3.5 h-3.5 text-amber-400" />
+                    <Edit2 className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                     <span>Editar {isSubtopic ? 'Subtópico' : 'Tópico'}</span>
                   </button>
                 )}
@@ -189,9 +272,9 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
                       setIsMenuOpen(false);
                       onDeleteTopic(topic.id);
                     }}
-                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 flex items-center gap-2 border-t border-zinc-800/80 pt-1 mt-1"
+                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 flex items-center gap-2 border-t border-zinc-200 dark:border-zinc-800/80 pt-1 mt-1"
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
                     <span>Excluir {isSubtopic ? 'Subtópico' : 'Tópico'}</span>
                   </button>
                 )}
@@ -203,17 +286,20 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
 
       {/* Recursive Subtopics */}
       {hasSubtopics && isExpanded && (
-        <div className="mt-1 space-y-1 relative pl-3 before:absolute before:left-3 before:top-0 before:bottom-2 before:w-px before:bg-zinc-800">
+        <div className="mt-1.5 space-y-1.5 border-l-[3px] border-indigo-500/60 ml-4 pl-3 py-0.5">
           {topic.subtopicos!.map((sub) => (
             <TopicNode
               key={sub.id}
               topic={sub}
               level={level + 1}
+              parentTopicTitle={topic.titulo}
               selectedTopicId={selectedTopicId}
               onSelectTopic={onSelectTopic}
               onAddSubtopic={onAddSubtopic}
               onEditTopic={onEditTopic}
               onDeleteTopic={onDeleteTopic}
+              onPraticarSimulado={onPraticarSimulado}
+              onPraticarFlashcards={onPraticarFlashcards}
             />
           ))}
         </div>

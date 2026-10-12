@@ -8,6 +8,8 @@ import {
   Edit2,
   Trash2,
   MoreVertical,
+  GitBranch,
+  ArrowLeft,
 } from 'lucide-react';
 import type { PlanoEstudo, Materia, Topico } from '../../types';
 import { SubjectNode } from './SubjectNode';
@@ -16,6 +18,7 @@ interface StudyTreeProps {
   plano: PlanoEstudo;
   selectedTopicId: string | null;
   onSelectTopic: (topic: Topico, materia: Materia) => void;
+  onBackToList?: () => void;
   onEditPlano?: (plano: PlanoEstudo) => void;
   onDeletePlano?: (planoId: string) => void;
   onAddMateria?: () => void;
@@ -25,12 +28,28 @@ interface StudyTreeProps {
   onAddSubtopic?: (parentTopicId: string, materiaId: string) => void;
   onEditTopic?: (topic: Topico) => void;
   onDeleteTopic?: (topicId: string) => void;
+  onPraticarSimulado?: (params: {
+    planoId?: string;
+    materiaId?: string;
+    topicoId?: string;
+    subtopicoId?: string;
+  }) => void;
+  onPraticarFlashcards?: (params: {
+    planoId?: string;
+    materiaId?: string;
+    materiaNome?: string;
+    topicoId?: string;
+    topicoNome?: string;
+    subtopicoId?: string;
+    subtopicoNome?: string;
+  }) => void;
 }
 
 export const StudyTree: React.FC<StudyTreeProps> = ({
   plano,
   selectedTopicId,
   onSelectTopic,
+  onBackToList,
   onEditPlano,
   onDeletePlano,
   onAddMateria,
@@ -40,13 +59,18 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
   onAddSubtopic,
   onEditTopic,
   onDeleteTopic,
+  onPraticarSimulado,
+  onPraticarFlashcards,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isPlanMenuOpen, setIsPlanMenuOpen] = useState(false);
 
+  const materias = plano?.materias || [];
+
   // Filter topics and subjects based on query
-  const filteredMaterias = plano.materias.map((mat) => {
-    if (!searchQuery.trim()) return mat;
+  const filteredMaterias = materias.map((mat) => {
+    const topicos = mat.topicos || [];
+    if (!searchQuery.trim()) return { ...mat, topicos };
     const lowerQuery = searchQuery.toLowerCase();
 
     const matchesTopico = (t: Topico): boolean => {
@@ -55,44 +79,73 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
       return false;
     };
 
-    const filteredTopicos = mat.topicos.filter(matchesTopico);
+    const filteredTopicos = topicos.filter(matchesTopico);
     return {
       ...mat,
       topicos: filteredTopicos,
     };
-  }).filter((mat) => mat.topicos.length > 0 || mat.nome.toLowerCase().includes(searchQuery.toLowerCase()));
+  }).filter((mat) => (mat.topicos?.length || 0) > 0 || mat.nome.toLowerCase().includes(searchQuery.toLowerCase()));
 
   // Stats calculation
-  const totalMaterias = plano.materias.length;
-  let totalTopicosCount = 0;
+  const totalMaterias = materias.length;
+  let totalTopicosPrincipais = 0;
+  let totalSubtopicosCount = 0;
   let advancedCount = 0;
 
-  plano.materias.forEach((m) => {
-    m.topicos.forEach((t) => {
-      totalTopicosCount++;
-      if (t.proficiencia === 'AVANCADO') advancedCount++;
+  const countSubtopics = (topicos: Topico[]): number => {
+    return topicos.reduce((acc, t) => {
+      const directSubs = t.subtopicos?.length || 0;
+      const nestedSubs = t.subtopicos ? countSubtopics(t.subtopicos) : 0;
+      return acc + directSubs + nestedSubs;
+    }, 0);
+  };
+
+  const countAdvanced = (topicos: Topico[]): number => {
+    return topicos.reduce((acc, t) => {
+      let count = t.proficiencia === 'AVANCADO' ? 1 : 0;
       if (t.subtopicos) {
-        totalTopicosCount += t.subtopicos.length;
-        advancedCount += t.subtopicos.filter((st) => st.proficiencia === 'AVANCADO').length;
+        count += countAdvanced(t.subtopicos);
       }
-    });
+      return acc + count;
+    }, 0);
+  };
+
+  materias.forEach((m) => {
+    const topicos = m.topicos || [];
+    totalTopicosPrincipais += topicos.length;
+    totalSubtopicosCount += countSubtopics(topicos);
+    advancedCount += countAdvanced(topicos);
   });
 
-  const readinessPercent = Math.round((advancedCount / (totalTopicosCount || 1)) * 100);
+  const totalGeralItens = totalTopicosPrincipais + totalSubtopicosCount;
+  const readinessPercent = Math.round((advancedCount / (totalGeralItens || 1)) * 100);
 
   return (
-    <div className="flex-1 h-full flex flex-col bg-zinc-950 overflow-hidden font-sans select-none">
+    <div className="flex-1 h-full flex flex-col bg-slate-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans select-none">
       {/* Plan Header */}
-      <div className="p-5 border-b border-zinc-800 bg-zinc-950/70 backdrop-blur-sm space-y-4 shrink-0">
+      <div className="p-5 border-b-2 border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 backdrop-blur-sm space-y-4 shrink-0">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 mb-1">
-              <span>Plano Ativo</span>
-              <span>/</span>
-              <span className="text-zinc-200">{plano.cargoAlvo || 'Concurso Público'}</span>
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              {onBackToList && (
+                <button
+                  type="button"
+                  onClick={onBackToList}
+                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white border border-zinc-200 dark:border-zinc-800 text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs"
+                  title="Voltar para a listagem com todos os planos"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+                  <span>Voltar aos Planos</span>
+                </button>
+              )}
+              <div className="flex items-center gap-2 text-xs font-mono text-zinc-500 dark:text-zinc-400">
+                <span>Plano Ativo</span>
+                <span>/</span>
+                <span className="text-zinc-800 dark:text-zinc-200">{plano.cargoAlvo || 'Concurso Público'}</span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-zinc-100 tracking-tight">
+              <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
                 {plano.titulo}
               </h1>
               {/* Plan Options Dropdown */}
@@ -100,7 +153,7 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsPlanMenuOpen(!isPlanMenuOpen)}
-                  className="p-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                  className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                   title="Opções do Plano de Estudo"
                 >
                   <MoreVertical className="w-4 h-4" />
@@ -108,19 +161,19 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
 
                 {isPlanMenuOpen && (
                   <div
-                    className="absolute left-0 top-full mt-1 w-48 rounded-xl bg-zinc-900 border border-zinc-800 shadow-2xl p-1 z-40 space-y-0.5"
+                    className="absolute left-0 top-full mt-1 w-48 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-1 z-40 space-y-0.5"
                     onMouseLeave={() => setIsPlanMenuOpen(false)}
                   >
                     {onEditPlano && (
-                      <button
+                  <button
                         type="button"
                         onClick={() => {
                           setIsPlanMenuOpen(false);
                           onEditPlano(plano);
                         }}
-                        className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-2"
+                        className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2"
                       >
-                        <Edit2 className="w-3.5 h-3.5 text-amber-400" />
+                        <Edit2 className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                         <span>Editar Plano</span>
                       </button>
                     )}
@@ -132,9 +185,9 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
                           setIsPlanMenuOpen(false);
                           onDeletePlano(plano.id);
                         }}
-                        className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 flex items-center gap-2 border-t border-zinc-800/80 pt-1 mt-1"
+                        className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 flex items-center gap-2 border-t border-zinc-200 dark:border-zinc-800/80 pt-1 mt-1"
                       >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                        <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
                         <span>Excluir Plano</span>
                       </button>
                     )}
@@ -146,7 +199,7 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
 
           <div className="flex items-center gap-2.5">
             {plano.dataExame && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-300">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-zinc-700 dark:text-zinc-300">
                 <Calendar className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Prova: {plano.dataExame}</span>
               </div>
@@ -154,9 +207,9 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
             {onAddMateria && (
               <button
                 onClick={onAddMateria}
-                className="px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 hover:border-zinc-700 text-xs font-medium flex items-center gap-1.5 transition-all"
+                className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs"
               >
-                <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                 <span>Nova Matéria</span>
               </button>
             )}
@@ -164,50 +217,59 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
         </div>
 
         {/* Minimalist Metrics Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-          <div className="p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-[10px] font-mono uppercase text-zinc-400">Disciplinas</div>
-            <div className="text-sm font-semibold font-mono text-zinc-200 mt-0.5">
-              {totalMaterias} matérias
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1">
+          <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
+            <div className="text-[10px] font-mono uppercase text-zinc-500 dark:text-zinc-400">Disciplinas</div>
+            <div className="text-sm font-semibold font-mono text-zinc-800 dark:text-zinc-200 mt-0.5">
+              {totalMaterias} {totalMaterias === 1 ? 'matéria' : 'matérias'}
             </div>
           </div>
-          <div className="p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-[10px] font-mono uppercase text-zinc-400">Tópicos Mapeados</div>
-            <div className="text-sm font-semibold font-mono text-zinc-200 mt-0.5">
-              {totalTopicosCount} itens
+          <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
+            <div className="text-[10px] font-mono uppercase text-zinc-500 dark:text-zinc-400">Tópicos Principais</div>
+            <div className="text-sm font-semibold font-mono text-zinc-800 dark:text-zinc-200 mt-0.5">
+              {totalTopicosPrincipais} {totalTopicosPrincipais === 1 ? 'tópico' : 'tópicos'}
             </div>
           </div>
-          <div className="p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-[10px] font-mono uppercase text-zinc-400">Score de Prontidão</div>
-            <div className="text-sm font-semibold font-mono text-emerald-400 mt-0.5 flex items-center gap-1">
+          <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
+            <div className="text-[10px] font-mono uppercase text-indigo-600 dark:text-indigo-400 flex items-center gap-1 font-semibold">
+              <GitBranch className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+              Subtópicos Totais
+            </div>
+            <div className="text-sm font-semibold font-mono text-indigo-700 dark:text-indigo-300 mt-0.5">
+              {totalSubtopicosCount} {totalSubtopicosCount === 1 ? 'subtópico' : 'subtópicos'}
+            </div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
+            <div className="text-[10px] font-mono uppercase text-zinc-500 dark:text-zinc-400">Score de Prontidão</div>
+            <div className="text-sm font-semibold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5" />
               {readinessPercent}%
             </div>
           </div>
-          <div className="p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-[10px] font-mono uppercase text-zinc-400">Pesos no Edital</div>
-            <div className="text-sm font-semibold font-mono text-indigo-400 mt-0.5">
-              Escala 1 a 10
+          <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 shadow-2xs col-span-2 sm:col-span-1">
+            <div className="text-[10px] font-mono uppercase text-zinc-500 dark:text-zinc-400">Total de Conteúdos</div>
+            <div className="text-sm font-semibold font-mono text-zinc-800 dark:text-zinc-300 mt-0.5">
+              {totalGeralItens} itens
             </div>
           </div>
         </div>
 
         {/* Search & Filter Bar */}
         <div className="relative">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-zinc-400 dark:text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar tópico, palavra-chave, remédio constitucional, tributo..."
-            className="w-full pl-9 pr-4 py-2 bg-zinc-900/60 text-xs text-zinc-200 rounded-xl border border-zinc-800 focus:outline-none focus:border-indigo-500 placeholder:text-zinc-500 transition-colors"
+            className="w-full pl-9 pr-4 py-2 bg-white dark:bg-zinc-900/60 text-xs text-zinc-900 dark:text-zinc-200 rounded-xl border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-500 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 transition-colors shadow-2xs"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-zinc-200 font-mono"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
             >
-              limpar
+              Limpar
             </button>
           )}
         </div>
@@ -228,6 +290,8 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
               onAddSubtopic={onAddSubtopic}
               onEditTopic={onEditTopic}
               onDeleteTopic={onDeleteTopic}
+              onPraticarSimulado={onPraticarSimulado}
+              onPraticarFlashcards={onPraticarFlashcards}
             />
           ))
         ) : (
