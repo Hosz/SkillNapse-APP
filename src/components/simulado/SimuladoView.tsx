@@ -8,32 +8,329 @@ import {
   ChevronRight,
   ChevronLeft,
   X,
+  Plus,
+  Loader2,
+  Trash2,
+  RotateCcw,
+  BookOpen,
+  Layers,
 } from 'lucide-react';
-import { simuladoService } from '../../services';
+import { simuladoService, questaoService, planoService } from '../../services';
+import { isQuotaExceededError } from '../../services/api';
+import { ConfirmModal } from '../common/ConfirmModal';
 import type { SimuladoResumo, SimuladoDetalhe } from '../../services/simuladoService';
-import type { PlanoEstudo } from '../../types';
+import type { PlanoEstudo, NivelProficiencia } from '../../types';
+
+export interface SimuladoFilterInitial {
+  planoId?: string;
+  materiaId?: string;
+  topicoId?: string;
+  subtopicoId?: string;
+}
+
+const LOCAL_STORAGE_PREFIX = 'skillnapse_simulado_';
+
+const salvarSimuladoLocal = (simulado: SimuladoDetalhe) => {
+  try {
+    if (simulado && simulado.simuladoId) {
+      localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${simulado.simuladoId}`, JSON.stringify(simulado));
+    }
+  } catch (e) {
+    console.warn('Erro ao salvar simulado em cache local:', e);
+  }
+};
+
+const obterSimuladoLocal = (simuladoId: string): SimuladoDetalhe | null => {
+  try {
+    const raw = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${simuladoId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.questoes) && parsed.questoes.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao obter simulado do cache local:', e);
+  }
+  return null;
+};
+
+const removerSimuladoLocal = (simuladoId: string) => {
+  try {
+    localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${simuladoId}`);
+  } catch {}
+};
+
+const extrairIndicativosSimulado = (sim: SimuladoResumo) => {
+  const cached = obterSimuladoLocal(sim.id);
+  if (cached && cached.questoes && cached.questoes.length > 0) {
+    const assuntos = Array.from(new Set(cached.questoes.map((q) => q.assuntoGeral).filter(Boolean)));
+    const topicos = Array.from(
+      new Set(cached.questoes.map((q) => q.topicoReferencia).filter(Boolean))
+    );
+    const bancas = Array.from(new Set(cached.questoes.map((q) => q.banca).filter(Boolean)));
+
+    return {
+      assuntos,
+      topicos,
+      banca: bancas[0] || undefined,
+    };
+  }
+
+  let cleanTitle = sim.titulo.replace(/^Simulado:\s*/i, '').replace(/^Simulado Adaptativo IA\s*[-:]?\s*/i, '');
+  let banca: string | undefined = undefined;
+
+  const matchBanca = cleanTitle.match(/\(([^)]+)\)$/);
+  if (matchBanca) {
+    banca = matchBanca[1];
+    cleanTitle = cleanTitle.replace(/\s*\([^)]+\)$/, '').trim();
+  }
+
+  let assuntos: string[] = [];
+  let topicos: string[] = [];
+
+  if (cleanTitle.includes(' > ')) {
+    const partes = cleanTitle.split(' > ').map((p) => p.trim());
+    if (partes.length >= 3) {
+      assuntos = [partes[0]];
+      topicos = [partes.slice(1).join(' > ')];
+    } else if (partes.length === 2) {
+      assuntos = [partes[0]];
+      topicos = [partes[1]];
+    }
+  } else if (cleanTitle.includes(' - ')) {
+    const partes = cleanTitle.split(' - ').map((p) => p.trim());
+    assuntos = [partes[0]];
+    if (partes[1]) {
+      topicos = [partes.slice(1).join(' - ')];
+    }
+  } else if (cleanTitle.trim()) {
+    assuntos = [cleanTitle.trim()];
+  }
+
+  return {
+    assuntos,
+    topicos,
+    banca,
+  };
+};
+
+const isUUID = (val?: string | null): boolean =>
+  !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
 
 interface SimuladoViewProps {
   plano: PlanoEstudo;
+  planos?: PlanoEstudo[];
+  onProficienciaAtualizada?: () => void;
+  initialFilter?: SimuladoFilterInitial | null;
+  initialSimuladoId?: string | null;
 }
 
-export const SimuladoView: React.FC<SimuladoViewProps> = ({ plano }) => {
+export const SimuladoView: React.FC<SimuladoViewProps> = ({
+  plano,
+  planos = [],
+  onProficienciaAtualizada,
+  initialFilter,
+  initialSimuladoId,
+}) => {
   const [simulados, setSimulados] = useState<SimuladoResumo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(!!initialFilter && !initialSimuladoId);
+  const [modalTab, setModalTab] = useState<'ia' | 'manual'>('ia');
 
-  // Modal Generator form state
-  const [qtdQuestoes, setQtdQuestoes] = useState(5);
+  // Plan Selection & Cascading Scope for Generator
+  const planosList = planos.length > 0 ? planos : [plano];
+  const [selectedPlanoId, setSelectedPlanoId] = useState<string>(
+    initialFilter?.planoId || plano.id
+  );
+  const [planoCarregado, setPlanoCarregado] = useState<PlanoEstudo | null>(null);
+  const [filterMateria, setFilterMateria] = useState(!!initialFilter?.materiaId);
+  const [selectedMateriaId, setSelectedMateriaId] = useState<string>(
+    initialFilter?.materiaId || ''
+  );
+  const [filterTopico, setFilterTopico] = useState(!!initialFilter?.topicoId);
+  const [selectedTopicoId, setSelectedTopicoId] = useState<string>(
+    initialFilter?.topicoId || ''
+  );
+  const [filterSubtopico, setFilterSubtopico] = useState(!!initialFilter?.subtopicoId);
+  const [selectedSubtopico, setSelectedSubtopico] = useState<string>(
+    initialFilter?.subtopicoId || ''
+  );
+
+  // Banca customizada
+  const [isCustomBanca, setIsCustomBanca] = useState(false);
+  const [customBanca, setCustomBanca] = useState('');
+
+  // Max Questions rule (IA Adaptativa: entre 3 e 15 questões por geração):
+  // Edital Completo: 15 | Matéria Inteira: 15 | Tópico Inteiro: 10 | Subtópico: 5
+  const maxQuestoes = !filterMateria
+    ? 15
+    : !filterTopico
+    ? 15
+    : !filterSubtopico
+    ? 10
+    : 5;
+
+  const [qtdQuestoes, setQtdQuestoes] = useState<number>(10);
   const [bancaAlvo, setBancaAlvo] = useState('CESPE / Cebraspe');
   const [generating, setGenerating] = useState(false);
+
+  // Manual Question state
+  const [manualEnunciado, setManualEnunciado] = useState('');
+  const [manualDificuldade, setManualDificuldade] = useState<'FACIL' | 'MEDIA' | 'DIFICIL'>('MEDIA');
+  const [manualGabarito, setManualGabarito] = useState('A');
+  const [manualExplicacao, setManualExplicacao] = useState('');
+  const [manualAlternativas, setManualAlternativas] = useState([
+    { letra: 'A' as const, texto: '' },
+    { letra: 'B' as const, texto: '' },
+    { letra: 'C' as const, texto: '' },
+    { letra: 'D' as const, texto: '' },
+    { letra: 'E' as const, texto: '' },
+  ]);
+  const [savingManual, setSavingManual] = useState(false);
 
   // Active Exam state
   const [activeSimulado, setActiveSimulado] = useState<SimuladoDetalhe | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [respostas, setRespostas] = useState<Record<string, string>>({}); // { questionId: altId }
   const [examFinished, setExamFinished] = useState(false);
-  const [examResult, setExamResult] = useState<{ total: number; acertos: number; pct: number } | null>(null);
+  const [examResult, setExamResult] = useState<{
+    total: number;
+    acertos: number;
+    pct: number;
+    topicos?: Array<{
+      topicoId: string;
+      nome: string;
+      total: number;
+      acertos: number;
+      pct: number;
+      proficiencia: NivelProficiencia;
+    }>;
+  } | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
+  const [filtroStatus, setFiltroStatus] = useState<'TODOS' | 'PENDENTES' | 'CONCLUIDOS'>('TODOS');
+  const [bannerNovoSimulado, setBannerNovoSimulado] = useState<{
+    id: string;
+    titulo: string;
+    totalQuestoes: number;
+  } | null>(null);
+
+  // Ajusta quantidade ao alterar o escopo
+  useEffect(() => {
+    setQtdQuestoes((prev) => Math.min(prev, maxQuestoes));
+  }, [maxQuestoes]);
+
+  // Sincroniza quando initialFilter muda
+  useEffect(() => {
+    if (initialFilter) {
+      if (initialFilter.planoId) {
+        setSelectedPlanoId(initialFilter.planoId);
+      }
+      if (initialFilter.materiaId) {
+        setFilterMateria(true);
+        setSelectedMateriaId(initialFilter.materiaId);
+      }
+      if (initialFilter.topicoId) {
+        setFilterTopico(true);
+        setSelectedTopicoId(initialFilter.topicoId);
+      }
+      if (initialFilter.subtopicoId) {
+        setFilterSubtopico(true);
+        setSelectedSubtopico(initialFilter.subtopicoId);
+      }
+      setModalTab('ia');
+      setIsModalOpen(true);
+    }
+  }, [initialFilter]);
+
+  const handleIniciarOuRepetirSimulado = async (simuladoId: string) => {
+    // 1. Tenta carregar do cache local
+    let detalhe = obterSimuladoLocal(simuladoId);
+
+    // 2. Se não estiver no cache local ou estiver sem questões, busca na API
+    if (!detalhe || !detalhe.questoes || detalhe.questoes.length === 0) {
+      detalhe = await simuladoService.obterSimulado(simuladoId);
+      if (detalhe && detalhe.questoes && detalhe.questoes.length > 0) {
+        salvarSimuladoLocal(detalhe);
+      }
+    }
+
+    // 3. Validação defensiva para evitar qualquer tela branca
+    if (!detalhe || !detalhe.questoes || detalhe.questoes.length === 0) {
+      alert(
+        'As questões deste simulado não puderam ser recuperadas no momento. Você pode gerar um novo simulado adaptativo a qualquer hora.'
+      );
+      return;
+    }
+
+    // 4. Inicia a prova com segurança
+    setActiveSimulado(detalhe);
+    setCurrentQuestionIndex(0);
+    setRespostas({});
+    setExamFinished(false);
+    setExamResult(null);
+    setTimerSeconds(0);
+    setIsModalOpen(false);
+  };
+
+  // Se um simulado específico foi solicitado diretamente (ex: vindo da tela de análise de lacunas)
+  useEffect(() => {
+    if (initialSimuladoId) {
+      handleIniciarOuRepetirSimulado(initialSimuladoId);
+    }
+  }, [initialSimuladoId]);
+
+  // Carrega plano detalhado com tópicos e subtópicos preservando seleções válidas
+  useEffect(() => {
+    if (selectedPlanoId) {
+      planoService.obterPlanoPorId(selectedPlanoId).then((p) => {
+        if (p) {
+          setPlanoCarregado(p);
+          if (p.materias && p.materias.length > 0) {
+            setSelectedMateriaId((prev) => {
+              const exists = p.materias.some((m) => m.id === prev);
+              return exists ? prev : p.materias[0].id;
+            });
+            const allTopics = p.materias.flatMap((m) => m.topicos || []);
+            if (allTopics.length > 0) {
+              setSelectedTopicoId((prev) => {
+                const exists = allTopics.some((t) => t.id === prev);
+                return exists ? prev : allTopics[0].id;
+              });
+              const allSubs = allTopics.flatMap((t) => t.subtopicos || []);
+              if (allSubs.length > 0) {
+                setSelectedSubtopico((prev) => {
+                  const exists = allSubs.some((s) => s.id === prev);
+                  return exists ? prev : allSubs[0].id;
+                });
+              }
+            }
+          }
+        }
+      });
+    }
+  }, [selectedPlanoId]);
+
+  // Plano ativo para cascata
+  const currentPlano = planoCarregado || planosList.find((p) => p.id === selectedPlanoId) || plano;
+  const materiasDisponiveis = currentPlano?.materias || [];
+  const materiaSelecionada = materiasDisponiveis.find((m) => m.id === selectedMateriaId) || materiasDisponiveis[0];
+  const topicosDisponiveis = materiaSelecionada?.topicos || [];
+  const topicoSelecionado = topicosDisponiveis.find((t) => t.id === selectedTopicoId) || topicosDisponiveis[0];
+  const subtopicosDisponiveis = topicoSelecionado?.subtopicos || [];
+  const subtopicoSelecionado = subtopicosDisponiveis.find(
+    (s) => s.id === selectedSubtopico || s.titulo.trim().toLowerCase() === selectedSubtopico.trim().toLowerCase()
+  );
+
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmLabel?: string;
+    variant?: 'danger' | 'warning' | 'info';
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
+  const [isConfirmLoading, setIsConfirmLoading] = useState(false);
 
   const carregarSimulados = () => {
     simuladoService.listarSimulados().then((lista) => {
@@ -42,11 +339,35 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({ plano }) => {
     });
   };
 
-  useEffect(() => {
-    simuladoService.listarSimulados().then((lista) => {
-      setSimulados(lista);
-      setLoading(false);
+  const handleExcluirSimulado = (simuladoId: string, titulo: string) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Excluir Simulado',
+      description: `Deseja realmente excluir o simulado "${titulo}"? As estatísticas e gabarito associados serão removidos.`,
+      confirmLabel: 'Excluir Simulado',
+      variant: 'danger',
+      onConfirm: async () => {
+        setIsConfirmLoading(true);
+        try {
+          const ok = await simuladoService.excluirSimulado(simuladoId);
+          if (ok) {
+            removerSimuladoLocal(simuladoId);
+            setSimulados((prev) => prev.filter((s) => s.id !== simuladoId));
+          } else {
+            alert('Erro ao excluir simulado. Tente novamente.');
+          }
+          setConfirmConfig(null);
+        } catch {
+          alert('Erro ao excluir simulado. Tente novamente.');
+        } finally {
+          setIsConfirmLoading(false);
+        }
+      },
     });
+  };
+
+  useEffect(() => {
+    carregarSimulados();
   }, []);
 
   // Timer for active exam
@@ -63,25 +384,115 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({ plano }) => {
   const handleGerarSimulado = async () => {
     setGenerating(true);
     try {
+      let targetTopicoId: string | undefined = undefined;
+
+      if (filterSubtopico && selectedSubtopico) {
+        if (subtopicoSelecionado?.id && isUUID(subtopicoSelecionado.id)) {
+          targetTopicoId = subtopicoSelecionado.id;
+        } else if (isUUID(selectedSubtopico)) {
+          targetTopicoId = selectedSubtopico;
+        }
+      }
+
+      if (!targetTopicoId && filterTopico) {
+        const topicoAlvoId = selectedTopicoId || topicoSelecionado?.id;
+        if (topicoAlvoId && isUUID(topicoAlvoId)) {
+          targetTopicoId = topicoAlvoId;
+        }
+      }
+
+      const topicosParaEnvio: string[] = targetTopicoId ? [targetTopicoId] : [];
+      const bancaFinal = isCustomBanca && customBanca.trim() ? customBanca.trim() : bancaAlvo;
+      const qtdFinal = Math.max(3, Math.min(15, qtdQuestoes));
+
+      let tituloDesejado: string | undefined = undefined;
+      if (filterSubtopico && subtopicoSelecionado) {
+        const mat = materiaSelecionada?.nome || 'Matéria';
+        const top = topicoSelecionado?.titulo || 'Tópico';
+        const sub = subtopicoSelecionado.titulo || 'Subtópico';
+        tituloDesejado = `${mat} > ${top} > ${sub} (${bancaFinal})`;
+      } else if (filterTopico && topicoSelecionado) {
+        const mat = materiaSelecionada?.nome || 'Matéria';
+        const top = topicoSelecionado.titulo || 'Tópico';
+        tituloDesejado = `${mat} - ${top} (${bancaFinal})`;
+      } else if (filterMateria && materiaSelecionada) {
+        tituloDesejado = `${materiaSelecionada.nome} (${bancaFinal})`;
+      } else if (currentPlano?.titulo) {
+        tituloDesejado = `${currentPlano.titulo} - Geral (${bancaFinal})`;
+      }
+
       const novo = await simuladoService.gerarSimuladoAdaptativo({
-        planoEstudoId: plano.id,
-        quantidadeQuestoes: qtdQuestoes,
-        bancaAlvo,
+        planoEstudoId: selectedPlanoId,
+        quantidadeQuestoes: qtdFinal,
+        bancaAlvo: bancaFinal,
+        topicoIds: topicosParaEnvio.length > 0 ? topicosParaEnvio : undefined,
+        titulo: tituloDesejado,
       });
 
       if (novo && novo.questoes && novo.questoes.length > 0) {
+        salvarSimuladoLocal(novo);
         setIsModalOpen(false);
-        setActiveSimulado(novo);
-        setCurrentQuestionIndex(0);
-        setRespostas({});
-        setExamFinished(false);
-        setExamResult(null);
-        setTimerSeconds(0);
+        carregarSimulados();
+        setBannerNovoSimulado({
+          id: novo.simuladoId,
+          titulo: novo.titulo,
+          totalQuestoes: novo.questoes.length,
+        });
+      } else {
+        throw new Error('Nenhuma questão gerada.');
       }
-    } catch {
-      alert('Erro ao gerar simulado com a IA. Tente novamente.');
+    } catch (err: unknown) {
+      if (isQuotaExceededError(err)) {
+        return;
+      }
+      alert('Erro ao gerar simulado com a IA. Tente novamente ou ajuste os filtros.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleSalvarQuestaoManual = async () => {
+    if (!manualEnunciado.trim()) {
+      alert('Por favor, informe o enunciado da questão.');
+      return;
+    }
+
+    const vazias = manualAlternativas.filter((a) => !a.texto.trim());
+    if (vazias.length > 0) {
+      alert('Por favor, preencha o texto de todas as 5 alternativas (A a E).');
+      return;
+    }
+
+    setSavingManual(true);
+    try {
+      await questaoService.criarQuestao({
+        topicoId: selectedTopicoId || undefined,
+        enunciado: manualEnunciado.trim(),
+        dificuldade: manualDificuldade,
+        banca: bancaAlvo,
+        explicacaoGabarito: manualExplicacao.trim() || undefined,
+        alternativas: manualAlternativas.map((alt) => ({
+          letra: alt.letra,
+          texto: alt.texto.trim(),
+          correta: alt.letra === manualGabarito,
+        })),
+      });
+
+      alert('Questão cadastrada com sucesso no acervo!');
+      setManualEnunciado('');
+      setManualExplicacao('');
+      setManualAlternativas([
+        { letra: 'A', texto: '' },
+        { letra: 'B', texto: '' },
+        { letra: 'C', texto: '' },
+        { letra: 'D', texto: '' },
+        { letra: 'E', texto: '' },
+      ]);
+      setIsModalOpen(false);
+    } catch {
+      alert('Erro ao cadastrar questão manual.');
+    } finally {
+      setSavingManual(false);
     }
   };
 
@@ -93,29 +504,105 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({ plano }) => {
     }));
   };
 
-  const handleConcluirExame = async () => {
+  const handleConcluirExame = () => {
     if (!activeSimulado) return;
-    const confirm = window.confirm('Deseja realmente finalizar o simulado e submeter suas respostas?');
-    if (!confirm) return;
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Finalizar e Submeter Simulado',
+      description:
+        'Deseja realmente finalizar o simulado e submeter todas as suas respostas? O resultado será computado e as proficiências dos tópicos serão calibradas.',
+      confirmLabel: 'Finalizar Simulado',
+      variant: 'info',
+      onConfirm: async () => {
+        setConfirmConfig(null);
+        await executarConclusaoExame();
+      },
+    });
+  };
+
+  const executarConclusaoExame = async () => {
+    if (!activeSimulado) return;
 
     let acertos = 0;
     const total = activeSimulado.questoes.length;
+    const topicoStats: Record<string, { total: number; acertos: number; nome?: string }> = {};
 
-    // Submete respostas para a API
+    // Submete respostas para a API vinculando a questão ao seu tópico
     for (const q of activeSimulado.questoes) {
       const altEscolhida = respostas[q.id];
+      const tId = q.topicoId;
+      if (tId) {
+        if (!topicoStats[tId]) {
+          topicoStats[tId] = {
+            total: 0,
+            acertos: 0,
+            nome: q.topicoReferencia || q.assuntoGeral,
+          };
+        }
+        topicoStats[tId].total++;
+      }
       if (altEscolhida) {
-        const acertou = await simuladoService.responderQuestao(q.id, altEscolhida, activeSimulado.simuladoId);
-        if (acertou) acertos++;
+        const acertou = await simuladoService.responderQuestao(
+          q.id,
+          altEscolhida,
+          activeSimulado.simuladoId,
+          q.topicoId
+        );
+        if (acertou) {
+          acertos++;
+          if (tId) {
+            topicoStats[tId].acertos++;
+          }
+        }
       }
     }
 
     await simuladoService.concluirSimulado(activeSimulado.simuladoId);
 
+    // Atualiza proficiência dos tópicos baseado no aproveitamento deste simulado
+    const topicosAtualizados: Array<{
+      topicoId: string;
+      nome: string;
+      total: number;
+      acertos: number;
+      pct: number;
+      proficiencia: NivelProficiencia;
+    }> = [];
+
+    for (const [tId, stat] of Object.entries(topicoStats)) {
+      if (stat.total > 0) {
+        const taxa = Math.round((stat.acertos / stat.total) * 100);
+        let novaProf: NivelProficiencia = 'INICIANTE';
+        if (taxa >= 80) {
+          novaProf = 'AVANCADO';
+        } else if (taxa >= 50) {
+          novaProf = 'INTERMEDIARIO';
+        }
+
+        await planoService.atualizarProgressoTopico(tId, {
+          proficiencia: novaProf,
+          nivelProficiencia: novaProf,
+        });
+
+        topicosAtualizados.push({
+          topicoId: tId,
+          nome: stat.nome || 'Tópico',
+          total: stat.total,
+          acertos: stat.acertos,
+          pct: taxa,
+          proficiencia: novaProf,
+        });
+      }
+    }
+
     const pct = Math.round((acertos / total) * 100);
-    setExamResult({ total, acertos, pct });
+    setExamResult({ total, acertos, pct, topicos: topicosAtualizados });
     setExamFinished(true);
     carregarSimulados();
+
+    if (onProficienciaAtualizada) {
+      onProficienciaAtualizada();
+    }
   };
 
   const formatTimer = (totalSec: number) => {
@@ -126,51 +613,80 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({ plano }) => {
 
   // --- MODO DE RESOLUÇÃO DO SIMULADO ATIVO ---
   if (activeSimulado) {
-    const qAtual = activeSimulado.questoes[currentQuestionIndex];
+    if (!activeSimulado.questoes || activeSimulado.questoes.length === 0) {
+      return (
+        <div className="flex-1 h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-zinc-950 p-6 text-center text-zinc-900 dark:text-zinc-100">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center justify-center text-amber-600 dark:text-amber-400 mb-4">
+            <Award className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold mb-2">Simulado sem questões disponíveis</h3>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md mb-6">
+            Não foram encontradas questões carregadas para este simulado. Você pode gerar um novo simulado adaptativo a qualquer momento.
+          </p>
+          <button
+            onClick={() => setActiveSimulado(null)}
+            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all cursor-pointer"
+          >
+            Voltar para Meus Simulados
+          </button>
+        </div>
+      );
+    }
+
+    const qAtual = activeSimulado.questoes[currentQuestionIndex] || activeSimulado.questoes[0];
     const totalQ = activeSimulado.questoes.length;
 
     return (
-      <div className="flex-1 h-full flex flex-col bg-zinc-950 overflow-hidden text-zinc-100 font-sans">
+      <div className="flex-1 h-full flex flex-col bg-slate-50 dark:bg-zinc-950 overflow-hidden text-zinc-900 dark:text-zinc-100 font-sans select-none">
         {/* Top Navigation Bar do Simulado */}
-        <div className="h-16 px-6 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md flex items-center justify-between shrink-0">
+        <div className="h-16 px-6 border-b-2 border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-950/80 backdrop-blur-md flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <button
               onClick={() => {
-                if (window.confirm('Deseja sair do simulado em andamento? O progresso não finalizado poderá ser reiniciado.')) {
-                  setActiveSimulado(null);
-                }
+                setConfirmConfig({
+                  isOpen: true,
+                  title: 'Sair do Simulado em Andamento',
+                  description:
+                    'Deseja realmente sair do simulado em andamento? O progresso não finalizado poderá ser reiniciado.',
+                  confirmLabel: 'Sair do Simulado',
+                  variant: 'warning',
+                  onConfirm: () => {
+                    setConfirmConfig(null);
+                    setActiveSimulado(null);
+                  },
+                });
               }}
-              className="p-1.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-all"
-              title="Voltar ao início"
+              className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
+              title="Sair do Simulado"
             >
               <X className="w-4 h-4" />
             </button>
             <div>
-              <div className="text-xs font-semibold text-zinc-100 flex items-center gap-2">
+              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                 <span>{activeSimulado.titulo}</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  {activeSimulado.tipo}
+                <span className="text-[10px] font-mono bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 px-2 py-0.5 rounded-full font-semibold">
+                  IA Adaptativa
                 </span>
-              </div>
-              <div className="text-[11px] text-zinc-400 font-mono">
+              </h2>
+              <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
                 Questão {currentQuestionIndex + 1} de {totalQ}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono text-amber-400">
-              <Clock className="w-3.5 h-3.5" />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-zinc-700 dark:text-zinc-300">
+              <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>{formatTimer(timerSeconds)}</span>
             </div>
 
             {!examFinished ? (
               <button
                 onClick={handleConcluirExame}
-                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20"
+                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm shadow-emerald-600/20"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Finalizar Prova</span>
+                <span>Finalizar Simulado</span>
               </button>
             ) : (
               <button
@@ -183,129 +699,150 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({ plano }) => {
           </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full space-y-6">
-          {/* Resultados Card se Finalizado */}
-          {examFinished && examResult && (
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-zinc-900/60 to-zinc-950 border border-indigo-500/30 shadow-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
-                    <Award className="w-6 h-6" />
+        {/* Exam Body Area */}
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          {/* Main Question Viewport */}
+          <div className="flex-1 p-6 md:p-8 overflow-y-auto space-y-6 select-text">
+            {examFinished && examResult && (
+              <div className="p-6 rounded-3xl bg-emerald-950/30 border-2 border-emerald-500/30 flex flex-col gap-4 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                      <CheckCircle2 className="w-4 h-4" /> Simulado Concluído com Sucesso!
+                    </div>
+                    <p className="text-xs text-zinc-300">
+                      Você acertou <strong>{examResult.acertos}</strong> de <strong>{examResult.total}</strong> questões.
+                    </p>
                   </div>
-                  <div>
-                    <h2 className="text-base font-bold text-zinc-100">Simulado Concluído com Sucesso!</h2>
-                    <p className="text-xs text-zinc-400 font-mono">Tempo total: {formatTimer(timerSeconds)}</p>
+                  <div className="text-3xl font-mono font-bold text-emerald-400">
+                    {examResult.pct}%
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-2xl font-black font-mono text-emerald-400">{examResult.pct}%</div>
-                  <div className="text-[11px] text-zinc-400">Aproveitamento</div>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-3 gap-3 pt-2">
-                <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 text-center">
-                  <div className="text-[10px] font-mono uppercase text-zinc-400">Total de Questões</div>
-                  <div className="text-sm font-bold font-mono text-zinc-200 mt-1">{examResult.total}</div>
-                </div>
-                <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 text-center">
-                  <div className="text-[10px] font-mono uppercase text-emerald-400">Acertos</div>
-                  <div className="text-sm font-bold font-mono text-emerald-400 mt-1">{examResult.acertos}</div>
-                </div>
-                <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 text-center">
-                  <div className="text-[10px] font-mono uppercase text-rose-400">Erros</div>
-                  <div className="text-sm font-bold font-mono text-rose-400 mt-1">
-                    {examResult.total - examResult.acertos}
+                {/* Exibição dos tópicos com proficiência recalculada */}
+                {examResult.topicos && examResult.topicos.length > 0 && (
+                  <div className="pt-4 border-t border-emerald-500/20 space-y-2">
+                    <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Atualização Automática de Proficiência por Tópico
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {examResult.topicos.map((top) => (
+                        <div
+                          key={top.topicoId}
+                          className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 text-xs shadow-2xs"
+                        >
+                          <div className="truncate mr-2">
+                            <span className="font-semibold text-zinc-900 dark:text-zinc-200 block truncate">{top.nome}</span>
+                            <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
+                              {top.acertos}/{top.total} acertos ({top.pct}%)
+                            </span>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border uppercase shrink-0 ${
+                              top.proficiencia === 'AVANCADO'
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                : top.proficiencia === 'INTERMEDIARIO'
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30'
+                            }`}
+                          >
+                            {top.proficiencia}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Enunciado e Alternativas da Questão Atual */}
-          {qAtual && (
-            <div className="p-6 rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-6">
-              {/* Metadados da Questão */}
-              <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-zinc-800">
-                <span className="px-2.5 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-[11px] font-mono text-zinc-300">
-                  {qAtual.banca || 'Banca Concurso'} • {qAtual.ano || '2024'}
-                </span>
-                <span className="px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[11px] font-mono text-indigo-300">
-                  {qAtual.assuntoGeral}
-                </span>
-                {qAtual.topicoReferencia && (
-                  <span className="px-2.5 py-1 rounded-lg bg-zinc-800/80 border border-zinc-700/60 text-[11px] font-mono text-zinc-400">
-                    {qAtual.topicoReferencia}
-                  </span>
                 )}
-                <span className="ml-auto text-[11px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
-                  {qAtual.dificuldade}
-                </span>
               </div>
+            )}
 
-              {/* Enunciado */}
-              <div className="text-sm text-zinc-200 leading-relaxed font-sans font-medium whitespace-pre-wrap">
-                {qAtual.enunciado}
-              </div>
+            {qAtual && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 text-xs font-mono text-zinc-600 dark:text-zinc-400">
+                  <span className="px-2.5 py-0.5 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 font-medium">
+                    {qAtual.banca || 'Banca Oficial'}
+                  </span>
+                  <span>•</span>
+                  <span>{qAtual.assuntoGeral}</span>
+                </div>
 
-              {/* Alternativas */}
-              <div className="space-y-3 pt-2">
-                {qAtual.alternativas.map((alt) => {
-                  const isSelected = respostas[qAtual.id] === alt.id;
-                  return (
-                    <div
-                      key={alt.id}
-                      onClick={() => handleSelectAlternativa(qAtual.id, alt.id)}
-                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
-                        isSelected
-                          ? 'bg-indigo-600/15 border-indigo-500 ring-1 ring-indigo-500/50 text-zinc-100 shadow-sm'
-                          : 'bg-zinc-950/60 hover:bg-zinc-900 border-zinc-800 hover:border-zinc-700 text-zinc-300'
-                      }`}
-                    >
+                <div className="text-sm md:text-base text-zinc-900 dark:text-zinc-100 font-medium leading-relaxed bg-white dark:bg-zinc-900/40 p-5 rounded-2xl border-2 border-zinc-200 dark:border-zinc-800/80 shadow-2xs">
+                  {qAtual.enunciado}
+                </div>
+
+                {/* Alternativas */}
+                <div className="space-y-2.5">
+                  {qAtual.alternativas.map((alt) => {
+                    const isSelected = respostas[qAtual.id] === alt.id;
+                    return (
                       <div
-                        className={`w-6 h-6 rounded-lg font-mono text-xs font-bold flex items-center justify-center shrink-0 transition-colors ${
+                        key={alt.id}
+                        onClick={() => handleSelectAlternativa(qAtual.id, alt.id)}
+                        className={`p-4 rounded-xl border-2 text-xs md:text-sm flex items-start gap-3 cursor-pointer transition-all ${
                           isSelected
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-zinc-800 text-zinc-400'
+                            ? 'bg-indigo-50 dark:bg-indigo-600/15 border-indigo-500 text-indigo-950 dark:text-zinc-100 shadow-sm font-medium'
+                            : 'bg-white dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-800 dark:text-zinc-300'
                         }`}
                       >
-                        {alt.letra}
+                        <span
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono font-bold shrink-0 text-xs ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400'
+                          }`}
+                        >
+                          {alt.letra}
+                        </span>
+                        <div className="pt-0.5 leading-relaxed flex-1">{alt.texto}</div>
                       </div>
-                      <div className="text-xs leading-relaxed font-sans pt-0.5">{alt.texto}</div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
+            )}
+
+            {/* Bottom Question Controls */}
+            <div className="flex items-center justify-between pt-4 border-t-2 border-zinc-200 dark:border-zinc-800">
+              <button
+                type="button"
+                disabled={currentQuestionIndex === 0}
+                onClick={() => setCurrentQuestionIndex((prev) => prev - 1)}
+                className="px-4 py-2 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition-all border border-zinc-200 dark:border-zinc-800 shadow-2xs"
+              >
+                <ChevronLeft className="w-4 h-4" /> Questão Anterior
+              </button>
+
+              <button
+                type="button"
+                disabled={currentQuestionIndex === totalQ - 1}
+                onClick={() => setCurrentQuestionIndex((prev) => prev + 1)}
+                className="px-4 py-2 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition-all border border-zinc-200 dark:border-zinc-800 shadow-2xs"
+              >
+                Próxima Questão <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-          )}
+          </div>
 
-          {/* Barra de Navegação Inferior das Questões */}
-          <div className="flex items-center justify-between pt-2">
-            <button
-              onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
-              disabled={currentQuestionIndex === 0}
-              className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 border border-zinc-800 text-xs font-medium text-zinc-300 flex items-center gap-1.5 transition-all"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span>Anterior</span>
-            </button>
-
-            {/* Marcadores rápidos de questões */}
-            <div className="flex items-center gap-1.5 overflow-x-auto px-2">
+          {/* Right Question Palette Drawer */}
+          <div className="w-full md:w-64 border-t md:border-t-0 md:border-l-2 border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/60 p-5 space-y-4 shrink-0">
+            <div className="text-xs font-mono uppercase tracking-wider text-zinc-600 dark:text-zinc-400 font-bold">
+              Gabarito do Simulado
+            </div>
+            <div className="grid grid-cols-5 gap-2">
               {activeSimulado.questoes.map((q, idx) => {
-                const respondida = !!respostas[q.id];
+                const isRespondida = !!respostas[q.id];
                 const isCurrent = idx === currentQuestionIndex;
                 return (
                   <button
                     key={q.id}
                     onClick={() => setCurrentQuestionIndex(idx)}
-                    className={`w-7 h-7 rounded-lg text-xs font-mono font-bold transition-all border ${
+                    className={`h-9 rounded-lg font-mono text-xs font-semibold flex items-center justify-center border transition-all ${
                       isCurrent
-                        ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm'
-                        : respondida
-                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-                        : 'border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-zinc-300'
+                        ? 'border-indigo-500 ring-2 ring-indigo-500/40 text-white bg-indigo-600'
+                        : isRespondida
+                        ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-200'
+                        : 'bg-white dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800/80 text-zinc-500 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'
                     }`}
                   >
                     {idx + 1}
@@ -313,239 +850,791 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({ plano }) => {
                 );
               })}
             </div>
-
-            {currentQuestionIndex < totalQ - 1 ? (
-              <button
-                onClick={() => setCurrentQuestionIndex((prev) => Math.min(totalQ - 1, prev + 1))}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium flex items-center gap-1.5 transition-all"
-              >
-                <span>Próxima</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                onClick={handleConcluirExame}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Finalizar</span>
-              </button>
-            )}
           </div>
         </div>
+
+        {/* Modal de Confirmação para Finalização/Saída do Simulado */}
+        {confirmConfig && (
+          <ConfirmModal
+            isOpen={confirmConfig.isOpen}
+            title={confirmConfig.title}
+            description={confirmConfig.description}
+            confirmLabel={confirmConfig.confirmLabel}
+            variant={confirmConfig.variant}
+            isLoading={isConfirmLoading}
+            onConfirm={confirmConfig.onConfirm}
+            onClose={() => {
+              if (!isConfirmLoading) setConfirmConfig(null);
+            }}
+          />
+        )}
       </div>
     );
   }
 
-  // --- MODO LISTA DE SIMULADOS & GERADOR IA ---
-  const totalSimulados = simulados.length;
-  const mediaAcertos =
-    totalSimulados > 0
-      ? Math.round(simulados.reduce((acc, s) => acc + s.percentualAcerto, 0) / totalSimulados)
-      : 0;
-
+  // --- MODO DE LISTAGEM DE HISTÓRICO DE SIMULADOS ---
   return (
-    <div className="flex-1 h-full flex flex-col bg-zinc-950 overflow-hidden font-sans select-none">
+    <div className="flex-1 h-full flex flex-col bg-slate-50 dark:bg-zinc-950 overflow-y-auto select-none font-sans p-6 sm:p-8 space-y-6 text-zinc-900 dark:text-zinc-100">
       {/* Header */}
-      <div className="p-5 border-b border-zinc-800 bg-zinc-950/70 backdrop-blur-sm space-y-4 shrink-0">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="text-xs font-mono text-zinc-400 mb-1">Avaliação Sináptica</div>
-            <h1 className="text-lg font-bold text-zinc-100 tracking-tight flex items-center gap-2">
-              Laboratório de Simulados & Provas IA
-            </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b-2 border-zinc-200 dark:border-zinc-800">
+        <div>
+          <div className="text-xs font-mono text-zinc-500 dark:text-zinc-400 mb-1 flex items-center gap-1.5 font-medium">
+            <Award className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <span>Módulo de Provas & Questões Inéditas</span>
           </div>
-
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20 cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Gerar Simulado Adaptativo IA</span>
-          </button>
+          <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
+            Simulados Adaptativos & Provas IA
+          </h1>
+          <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 max-w-xl leading-relaxed">
+            Gere provas personalizadas com foco no edital completo, matéria, tópico ou subtópico específico com limites inteligentes de questões.
+          </p>
         </div>
 
-        {/* Strips de Desempenho */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-          <div className="p-3 rounded-xl bg-zinc-900/50 border border-zinc-800">
-            <div className="text-[10px] font-mono uppercase text-zinc-400">Simulados Realizados</div>
-            <div className="text-base font-bold font-mono text-zinc-100 mt-0.5">{totalSimulados} provas</div>
-          </div>
-          <div className="p-3 rounded-xl bg-zinc-900/50 border border-zinc-800">
-            <div className="text-[10px] font-mono uppercase text-zinc-400">Aproveitamento Médio</div>
-            <div className="text-base font-bold font-mono text-emerald-400 mt-0.5 flex items-center gap-1.5">
-              <Award className="w-4 h-4" />
-              {mediaAcertos}% acertos
-            </div>
-          </div>
-          <div className="p-3 rounded-xl bg-zinc-900/50 border border-zinc-800">
-            <div className="text-[10px] font-mono uppercase text-zinc-400">Motor de Geração</div>
-            <div className="text-base font-bold font-mono text-indigo-400 mt-0.5 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4" />
-              LLM Adaptativa Ativa
-            </div>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setModalTab('ia');
+            setIsModalOpen(true);
+          }}
+          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 shrink-0"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Novo Simulado Personalizado</span>
+        </button>
       </div>
 
-      {/* Lista de Simulados */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {loading ? (
-          <div className="text-center py-12 text-xs font-mono text-zinc-500">
-            Carregando simulados cadastrados...
-          </div>
-        ) : simulados.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {simulados.map((sim) => (
-              <div
-                key={sim.id}
-                className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 transition-all flex flex-col justify-between space-y-4 shadow-sm"
-              >
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-2">
-                    <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300 uppercase">
-                      {sim.tipo}
-                    </span>
-                    <span className="text-[11px] font-mono text-zinc-500">
-                      {new Date(sim.criadoEm).toLocaleDateString('pt-BR')}
-                    </span>
-                  </div>
-                  <h3 className="text-sm font-bold text-zinc-100 leading-snug">{sim.titulo}</h3>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
-                  <div className="text-xs font-mono">
-                    <span className="text-emerald-400 font-bold text-sm">{sim.percentualAcerto}%</span>
-                    <span className="text-zinc-500 ml-1.5">
-                      ({sim.totalAcertos}/{sim.totalQuestoesRespondidas} certas)
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      // Inicia o simulado selecionado
-                      simuladoService.gerarSimuladoAdaptativo({
-                        planoEstudoId: plano.id,
-                        quantidadeQuestoes: 5,
-                      }).then((detalhe) => {
-                        setActiveSimulado(detalhe);
-                        setCurrentQuestionIndex(0);
-                        setRespostas({});
-                        setExamFinished(false);
-                        setExamResult(null);
-                        setTimerSeconds(0);
-                      });
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium flex items-center gap-1.5 transition-all"
-                  >
-                    <Play className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Praticar Novamente</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-16 space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 mx-auto flex items-center justify-center text-zinc-500">
-              <Award className="w-6 h-6" />
+      {/* Banner de Simulado Recém-Criado */}
+      {bannerNovoSimulado && (
+        <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border-2 border-indigo-200 dark:border-indigo-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600/10 dark:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5" />
             </div>
-            <div className="text-xs font-medium text-zinc-400">Nenhum simulado realizado ainda.</div>
+            <div>
+              <div className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                Simulado gerado com sucesso!
+              </div>
+              <div className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                "{bannerNovoSimulado.titulo}" ({bannerNovoSimulado.totalQuestoes} questões) já está disponível abaixo para ser realizado quando você preferir.
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
             <button
-              onClick={() => setIsModalOpen(true)}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-all"
+              type="button"
+              onClick={() => {
+                handleIniciarOuRepetirSimulado(bannerNovoSimulado.id);
+                setBannerNovoSimulado(null);
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
             >
-              Gerar Primeiro Simulado com IA
+              <Play className="w-3.5 h-3.5" />
+              <span>Iniciar Agora</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setBannerNovoSimulado(null)}
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors cursor-pointer"
+              title="Fechar aviso"
+            >
+              <X className="w-4 h-4" />
             </button>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Grid de Simulados (Meus Simulados) */}
+      <div className="space-y-4">
+        {/* Header com Filtros de Status */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
+              <Award className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              Meus Simulados
+            </h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+              Inicie simulados gerados ou repita provas já realizadas para fixar o aprendizado.
+            </p>
+          </div>
+
+          {/* Segmented Control / Filtro de Status */}
+          <div className="flex items-center bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-semibold">
+            {(() => {
+              const countPendentes = simulados.filter((s) => !s.concluido && s.totalQuestoesRespondidas === 0).length;
+              const countConcluidos = simulados.filter((s) => s.concluido || s.totalQuestoesRespondidas > 0).length;
+
+              return (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroStatus('TODOS')}
+                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                      filtroStatus === 'TODOS'
+                        ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-300 dark:border-zinc-700 shadow-2xs'
+                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    Todos ({simulados.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroStatus('PENDENTES')}
+                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                      filtroStatus === 'PENDENTES'
+                        ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-300 dark:border-zinc-700 shadow-2xs'
+                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    Em Aberto ({countPendentes})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroStatus('CONCLUIDOS')}
+                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                      filtroStatus === 'CONCLUIDOS'
+                        ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-300 dark:border-zinc-700 shadow-2xs'
+                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    Concluídos ({countConcluidos})
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="py-16 flex items-center justify-center text-zinc-500">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+          </div>
+        ) : (() => {
+          const pendentes = simulados.filter((s) => !s.concluido && s.totalQuestoesRespondidas === 0);
+          const concluidos = simulados.filter((s) => s.concluido || s.totalQuestoesRespondidas > 0);
+          const listaExibida =
+            filtroStatus === 'PENDENTES'
+              ? pendentes
+              : filtroStatus === 'CONCLUIDOS'
+              ? concluidos
+              : simulados;
+
+          if (simulados.length === 0) {
+            return (
+              <div className="text-center py-16 space-y-3 rounded-3xl bg-white dark:bg-zinc-900/30 border-2 border-dashed border-zinc-200 dark:border-zinc-800 shadow-2xs">
+                <div className="w-12 h-12 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 mx-auto flex items-center justify-center text-zinc-500">
+                  <Award className="w-6 h-6" />
+                </div>
+                <div className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Nenhum simulado criado ainda.</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalTab('ia');
+                    setIsModalOpen(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                >
+                  Gerar Primeiro Simulado com IA
+                </button>
+              </div>
+            );
+          }
+
+          if (listaExibida.length === 0) {
+            return (
+              <div className="text-center py-12 space-y-2 rounded-2xl bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
+                <div className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                  Nenhum simulado encontrado com o filtro selecionado ({filtroStatus === 'PENDENTES' ? 'Em Aberto' : 'Concluídos'}).
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFiltroStatus('TODOS')}
+                  className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
+                  Ver todos os simulados
+                </button>
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {listaExibida.map((sim) => {
+                const isPendente = !sim.concluido && sim.totalQuestoesRespondidas === 0;
+                const indicativos = extrairIndicativosSimulado(sim);
+
+                return (
+                  <div
+                    key={sim.id}
+                    className="p-5 rounded-2xl bg-white dark:bg-zinc-900/40 border-2 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700/90 space-y-4 flex flex-col justify-between shadow-2xs transition-all"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-[10px] font-mono">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 font-semibold">
+                            {sim.tipo === 'ADAPTATIVO_IA' ? 'Adaptativo IA' : 'Manual'}
+                          </span>
+                          {isPendente ? (
+                            <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 font-semibold flex items-center gap-1">
+                              <Sparkles className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                              Em Aberto
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-semibold flex items-center gap-1">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                              Concluído
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-zinc-500 dark:text-zinc-400">{new Date(sim.criadoEm).toLocaleDateString()}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleExcluirSimulado(sim.id, sim.titulo)}
+                            className="p-1 rounded-lg text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                            title="Excluir simulado"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Título do Simulado */}
+                      <div>
+                        <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 line-clamp-2 leading-snug">
+                          {sim.titulo}
+                        </h4>
+                      </div>
+
+                      {/* Indicativos de Assunto, Matéria, Tópico e Banca */}
+                      {(indicativos.assuntos.length > 0 || indicativos.topicos.length > 0 || indicativos.banca) && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                          {indicativos.assuntos.map((assunto, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 text-[10px] font-medium flex items-center gap-1 max-w-full"
+                              title="Matéria / Assunto Geral"
+                            >
+                              <BookOpen className="w-2.5 h-2.5 text-indigo-500 shrink-0" />
+                              <span className="truncate">{assunto}</span>
+                            </span>
+                          ))}
+                          {indicativos.topicos.map((topico, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800/90 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-[10px] font-medium flex items-center gap-1 max-w-full"
+                              title="Tópico / Subtópico"
+                            >
+                              <Layers className="w-2.5 h-2.5 text-zinc-500 shrink-0" />
+                              <span className="truncate">{topico}</span>
+                            </span>
+                          ))}
+                          {indicativos.banca && (
+                            <span
+                              className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700/80 text-[10px] font-mono"
+                              title="Banca Alvo"
+                            >
+                              {indicativos.banca}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-3 border-t-2 border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
+                      {isPendente ? (
+                        <div className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
+                          Aguardando resolução
+                        </div>
+                      ) : (
+                        <div className="text-xs font-mono text-zinc-600 dark:text-zinc-400">
+                          Acertos: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{sim.percentualAcerto}%</strong>
+                        </div>
+                      )}
+
+                      {isPendente ? (
+                        <button
+                          type="button"
+                          onClick={() => handleIniciarOuRepetirSimulado(sim.id)}
+                          className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm shadow-indigo-600/20 cursor-pointer"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          <span>Iniciar Simulado</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleIniciarOuRepetirSimulado(sim.id)}
+                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                          <span>Praticar Novamente</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
-      {/* Modal Gerador de Simulado Adaptativo */}
+      {/* MODAL CONFIGURADOR DE SIMULADO & QUESTÕES */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200 text-zinc-900 dark:text-zinc-100">
+            <div className="flex items-center justify-between border-b-2 border-zinc-200 dark:border-zinc-800 pb-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-400" />
-                <h3 className="text-sm font-bold text-zinc-100">Gerar Simulado Adaptativo IA</h3>
+                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  Novo Simulado / Acervo de Questões
+                </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-zinc-500 hover:text-zinc-200"
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 block mb-1.5">
-                  Banca Alvo do Concurso
-                </label>
-                <select
-                  value={bancaAlvo}
-                  onChange={(e) => setBancaAlvo(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="CESPE / Cebraspe">CESPE / Cebraspe (Estilo Certo/Errado & Múltipla Escolha)</option>
-                  <option value="Fundação Getulio Vargas (FGV)">Fundação Getulio Vargas (FGV)</option>
-                  <option value="Fundação Carlos Chagas (FCC)">Fundação Carlos Chagas (FCC)</option>
-                  <option value="Vunesp">Vunesp</option>
-                  <option value="Banca Geral Concursos">Banca Geral de Concursos</option>
-                </select>
-              </div>
+            {/* Segmented Control de Abas do Modal */}
+            <div className="flex bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-1">
+              <button
+                type="button"
+                onClick={() => setModalTab('ia')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  modalTab === 'ia'
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-300 dark:border-zinc-700 shadow-xs'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Gerar com IA (Escopo Cascata)</span>
+              </button>
 
-              <div>
-                <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 block mb-1.5">
-                  Quantidade de Questões (3 a 15)
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={3}
-                    max={15}
-                    value={qtdQuestoes}
-                    onChange={(e) => setQtdQuestoes(parseInt(e.target.value, 10))}
-                    className="flex-1 accent-indigo-500 cursor-pointer"
-                  />
-                  <span className="font-mono text-sm font-bold text-indigo-400 w-8 text-right">
-                    {qtdQuestoes}
-                  </span>
+              <button
+                type="button"
+                onClick={() => setModalTab('manual')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  modalTab === 'manual'
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-300 dark:border-zinc-700 shadow-xs'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                }`}
+              >
+                <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Adicionar Questão Manual</span>
+              </button>
+            </div>
+
+            {/* ABA 1: GERAR COM IA (ESCOPO CASCATA) */}
+            {modalTab === 'ia' ? (
+              <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+                {/* 1. Seleção do Edital / Plano de Estudo */}
+                <div>
+                  <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300 block mb-1.5 font-semibold">
+                    1. Plano de Estudo / Edital Alvo:
+                  </label>
+                  <select
+                    value={selectedPlanoId}
+                    onChange={(e) => {
+                      setSelectedPlanoId(e.target.value);
+                      setFilterMateria(false);
+                      setSelectedMateriaId('');
+                      setFilterTopico(false);
+                      setSelectedTopicoId('');
+                      setFilterSubtopico(false);
+                      setSelectedSubtopico('');
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
+                  >
+                    {planosList.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.titulo} ({p.cargoAlvo || 'Geral'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Bloco de Marcação: Matéria Específica */}
+                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-2">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filterMateria}
+                      onChange={(e) => {
+                        setFilterMateria(e.target.checked);
+                        if (!e.target.checked) {
+                          setSelectedMateriaId('');
+                          setFilterTopico(false);
+                          setSelectedTopicoId('');
+                          setFilterSubtopico(false);
+                          setSelectedSubtopico('');
+                        } else if (materiasDisponiveis.length > 0) {
+                          setSelectedMateriaId(materiasDisponiveis[0].id);
+                        }
+                      }}
+                      className="w-4 h-4 rounded accent-indigo-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                      Selecionar matéria específica (Focar em uma disciplina)
+                    </span>
+                  </label>
+
+                  {filterMateria && (
+                    <div className="pt-2 animate-in fade-in">
+                      <select
+                        value={selectedMateriaId}
+                        onChange={(e) => {
+                          setSelectedMateriaId(e.target.value);
+                          setFilterTopico(false);
+                          setSelectedTopicoId('');
+                          setFilterSubtopico(false);
+                          setSelectedSubtopico('');
+                        }}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
+                      >
+                        {materiasDisponiveis.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.nome} ({m.topicos?.length || 0} tópicos)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Bloco de Marcação: Tópico Específico */}
+                {filterMateria && selectedMateriaId && (
+                  <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-2">
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filterTopico}
+                        onChange={(e) => {
+                          setFilterTopico(e.target.checked);
+                          if (!e.target.checked) {
+                            setSelectedTopicoId('');
+                            setFilterSubtopico(false);
+                            setSelectedSubtopico('');
+                          } else if (topicosDisponiveis.length > 0) {
+                            setSelectedTopicoId(topicosDisponiveis[0].id);
+                          }
+                        }}
+                        className="w-4 h-4 rounded accent-indigo-500 cursor-pointer"
+                      />
+                      <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                        Selecionar tópico específico (Focar em um assunto da matéria)
+                      </span>
+                    </label>
+
+                    {filterTopico && (
+                      <div className="pt-2 animate-in fade-in">
+                        <select
+                          value={selectedTopicoId}
+                          onChange={(e) => {
+                            setSelectedTopicoId(e.target.value);
+                            setFilterSubtopico(false);
+                            setSelectedSubtopico('');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
+                        >
+                          {topicosDisponiveis.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.titulo} (Peso {t.peso})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 4. Bloco de Marcação: Subtópico Específico */}
+                {filterTopico && selectedTopicoId && subtopicosDisponiveis.length > 0 && (
+                  <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-2">
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filterSubtopico}
+                        onChange={(e) => {
+                          setFilterSubtopico(e.target.checked);
+                          if (!e.target.checked) {
+                            setSelectedSubtopico('');
+                          } else if (subtopicosDisponiveis.length > 0) {
+                            setSelectedSubtopico(subtopicosDisponiveis[0].id);
+                          }
+                        }}
+                        className="w-4 h-4 rounded accent-indigo-500 cursor-pointer"
+                      />
+                      <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                        Selecionar subtópico específico (Foco cirúrgico)
+                      </span>
+                    </label>
+
+                    {filterSubtopico && (
+                      <div className="pt-2 animate-in fade-in">
+                        <select
+                          value={subtopicoSelecionado?.id || selectedSubtopico}
+                          onChange={(e) => setSelectedSubtopico(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
+                        >
+                          {subtopicosDisponiveis.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.titulo}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Banca Alvo com opção de Outra Banca personalizada */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-semibold">
+                      Banca Avaliadora Alvo:
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomBanca(!isCustomBanca)}
+                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 underline font-mono cursor-pointer"
+                    >
+                      {isCustomBanca ? '← Selecionar da lista padrão' : '+ Outra banca específica'}
+                    </button>
+                  </div>
+
+                  {!isCustomBanca ? (
+                    <select
+                      value={bancaAlvo}
+                      onChange={(e) => {
+                        if (e.target.value === 'OUTRA') {
+                          setIsCustomBanca(true);
+                        } else {
+                          setBancaAlvo(e.target.value);
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="CESPE / Cebraspe">CESPE / Cebraspe (Estilo Certo/Errado & Múltipla Escolha)</option>
+                      <option value="Fundação Getulio Vargas (FGV)">Fundação Getulio Vargas (FGV)</option>
+                      <option value="Fundação Carlos Chagas (FCC)">Fundação Carlos Chagas (FCC)</option>
+                      <option value="Vunesp">Vunesp</option>
+                      <option value="Cesgranrio">Fundação Cesgranrio</option>
+                      <option value="Instituto AOCP">Instituto AOCP</option>
+                      <option value="IDECAN">IDECAN</option>
+                      <option value="IBFC">IBFC</option>
+                      <option value="Quadrix">Instituto Quadrix</option>
+                      <option value="OUTRA">Outra Banca (Digitar nome personalizado)...</option>
+                    </select>
+                  ) : (
+                    <div className="space-y-1.5 animate-in fade-in">
+                      <input
+                        type="text"
+                        value={customBanca}
+                        onChange={(e) => setCustomBanca(e.target.value)}
+                        placeholder="Digite o nome da banca (Ex: IDECAN, FUNCERN, FUMARC...)"
+                        className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border-2 border-indigo-500 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none placeholder:text-zinc-400"
+                        autoFocus
+                      />
+                      <span className="text-[10px] text-zinc-500 dark:text-zinc-400 block font-mono">
+                        A IA calibrará o estilo, vocabulário e padrão de pegadinhas desta banca informada.
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Slider e Input de Quantidade com Regra de Limite */}
+                <div>
+                  <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wider text-zinc-600 dark:text-zinc-400 mb-1.5 font-semibold">
+                    <span>Quantidade de Questões:</span>
+                    <span className="text-indigo-600 dark:text-indigo-400 font-bold">
+                      Máximo: {maxQuestoes} questões para este escopo
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={3}
+                      max={maxQuestoes}
+                      value={qtdQuestoes}
+                      onChange={(e) => setQtdQuestoes(parseInt(e.target.value, 10))}
+                      className="flex-1 accent-indigo-500 cursor-pointer"
+                    />
+                    <input
+                      type="number"
+                      min={3}
+                      max={maxQuestoes}
+                      value={qtdQuestoes}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10) || 3;
+                        setQtdQuestoes(Math.max(3, Math.min(maxQuestoes, val)));
+                      }}
+                      className="w-16 px-2 py-1 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs font-mono font-bold text-center text-indigo-600 dark:text-indigo-400 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-500/20 text-xs text-indigo-900 dark:text-indigo-200">
+                  {filterSubtopico
+                    ? `Foco cirúrgico em: "${subtopicoSelecionado?.titulo || selectedSubtopico || 'Subtópico específico'}". Até ${maxQuestoes} questões.`
+                    : filterTopico
+                    ? `Foco temático no tópico "${topicoSelecionado?.titulo || 'selecionado'}". Até ${maxQuestoes} questões.`
+                    : filterMateria
+                    ? `Foco em toda a matéria "${materiaSelecionada?.nome || 'selecionada'}". Até ${maxQuestoes} questões.`
+                    : `Edital completo: todas as disciplinas do plano. Até ${maxQuestoes} questões.`}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t-2 border-zinc-200 dark:border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={generating}
+                    onClick={handleGerarSimulado}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-50"
+                  >
+                    {generating ? (
+                      <span>Sintetizando Prova...</span>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Iniciar Simulado ({qtdQuestoes} Questões)</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
+            ) : (
+              /* ABA 2: CADASTRO MANUAL DE QUESTÃO */
+              <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+                <div>
+                  <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300 block mb-1.5 font-semibold">
+                    Enunciado da Questão:
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={manualEnunciado}
+                    onChange={(e) => setManualEnunciado(e.target.value)}
+                    placeholder="Digite o enunciado completo da questão..."
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-indigo-500 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                  />
+                </div>
 
-              <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/20 text-xs text-indigo-200">
-                A IA analisará a matriz do plano <strong>{plano.titulo}</strong> e calibrará a dificuldade das questões para atacar suas maiores lacunas conceituais.
+                <div>
+                  <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300 block mb-1.5 font-semibold">
+                    Dificuldade Estimada:
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['FACIL', 'MEDIA', 'DIFICIL'] as const).map((dif) => (
+                      <button
+                        key={dif}
+                        type="button"
+                        onClick={() => setManualDificuldade(dif)}
+                        className={`py-1.5 px-3 rounded-xl border text-xs font-semibold transition-all ${
+                          manualDificuldade === dif
+                            ? 'bg-indigo-600 border-indigo-500 text-white shadow-xs'
+                            : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+                        }`}
+                      >
+                        {dif === 'FACIL' ? 'Fácil' : dif === 'MEDIA' ? 'Média' : 'Difícil'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Alternativas A a E */}
+                <div className="space-y-2">
+                  <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300 block mb-1 font-semibold">
+                    Alternativas (Selecione a Correta no rádio):
+                  </label>
+                  {manualAlternativas.map((alt, idx) => (
+                    <div key={alt.letra} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="gabaritoCorreto"
+                        checked={manualGabarito === alt.letra}
+                        onChange={() => setManualGabarito(alt.letra)}
+                        className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                        title="Marcar como gabarito correto"
+                      />
+                      <span className="w-6 font-mono text-xs font-bold text-zinc-600 dark:text-zinc-400">
+                        {alt.letra})
+                      </span>
+                      <input
+                        type="text"
+                        value={alt.texto}
+                        onChange={(e) => {
+                          const novoTexto = e.target.value;
+                          setManualAlternativas((prev) =>
+                            prev.map((a, i) => (i === idx ? { ...a, texto: novoTexto } : a))
+                          );
+                        }}
+                        placeholder={`Texto da alternativa ${alt.letra}...`}
+                        className="flex-1 px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-indigo-500 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300 block mb-1.5 font-semibold">
+                    Gabarito Comentado / Justificativa Pedagógica (Opcional):
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={manualExplicacao}
+                    onChange={(e) => setManualExplicacao(e.target.value)}
+                    placeholder="Explique a fundamentação da alternativa correta..."
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border-2 border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-indigo-500 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t-2 border-zinc-200 dark:border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingManual}
+                    onClick={handleSalvarQuestaoManual}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-50"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Salvar no Acervo</span>
+                  </button>
+                </div>
               </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-200"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={generating}
-                onClick={handleGerarSimulado}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-50"
-              >
-                {generating ? (
-                  <span>Sintetizando Prova...</span>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Iniciar Simulado Agora</span>
-                  </>
-                )}
-              </button>
-            </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* Modal de Confirmação para Excluir Simulado */}
+      {confirmConfig && (
+        <ConfirmModal
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          description={confirmConfig.description}
+          confirmLabel={confirmConfig.confirmLabel}
+          variant={confirmConfig.variant}
+          isLoading={isConfirmLoading}
+          onConfirm={confirmConfig.onConfirm}
+          onClose={() => {
+            if (!isConfirmLoading) setConfirmConfig(null);
+          }}
+        />
       )}
     </div>
   );
