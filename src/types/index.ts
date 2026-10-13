@@ -13,11 +13,15 @@ export type DiaSemana =
 
 export type Sm2Rating = 'ERRO' | 'DIFICIL' | 'BOM' | 'FACIL';
 
+export type RelevanciaBanca = 'MUITO_ALTA' | 'ALTA' | 'MEDIA' | 'BAIXA';
+
 export interface Topico {
   id: string;
   materiaId: string;
   titulo: string;
   peso: number; // 1 a 10
+  relevanciaBanca?: RelevanciaBanca;
+  justificativaPeso?: string;
   proficiencia: NivelProficiencia;
   topicoPaiId?: string | null;
   ordem: number;
@@ -42,6 +46,7 @@ export interface PlanoEstudo {
   titulo: string;
   descricao?: string;
   cargoAlvo?: string;
+  banca?: string;
   dataCriacao: string;
   dataExame?: string;
   materias: Materia[];

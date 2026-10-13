@@ -3,6 +3,8 @@ import { ApiService } from './api';
 export interface EditalTopicoItem {
   titulo: string;
   pesoEdital?: number;
+  relevanciaBanca?: 'MUITO_ALTA' | 'ALTA' | 'MEDIA' | 'BAIXA';
+  justificativaPeso?: string;
   subtopicos?: string[];
 }
 
@@ -13,6 +15,8 @@ export interface EditalMaterialItem {
 
 export interface EditalArvoreEstruturada {
   nomeConcurso: string;
+  banca?: string;
+  carreira?: string;
   cargo: string;
   materias: EditalMaterialItem[];
 }

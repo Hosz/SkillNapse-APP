@@ -119,10 +119,17 @@ export const PlanosListView: React.FC<PlanosListViewProps> = ({
                 <div className="space-y-3">
                   {/* Top Badges */}
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-mono uppercase bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1">
-                      <Briefcase className="w-3 h-3" />
-                      {plano.cargoAlvo || 'Geral'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-mono uppercase bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1">
+                        <Briefcase className="w-3 h-3" />
+                        {plano.cargoAlvo || 'Geral'}
+                      </span>
+                      {plano.banca && (
+                        <span className="text-[10px] font-mono uppercase bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20 px-2 py-0.5 rounded-md font-semibold">
+                          Banca: {plano.banca}
+                        </span>
+                      )}
+                    </div>
 
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       {onEditPlano && (

@@ -627,26 +627,35 @@ export const EditalParserView: React.FC<EditalParserViewProps> = ({ onPlanCreate
             <Loader2 className="w-10 h-10 animate-spin text-indigo-600 dark:text-indigo-500" />
             <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-200">
               {cargoAlvo
-                ? `Estruturando Conteúdo para "${cargoAlvo}"...`
-                : 'Analisando Edital com Inteligência Artificial...'}
+                ? `Estruturando Conteúdo e Raio-X da Banca para "${cargoAlvo}"...`
+                : 'Analisando Edital e Raio-X da Banca com Inteligência Artificial...'}
             </div>
             <p className="text-xs text-zinc-600 dark:text-zinc-500 max-w-xs leading-relaxed">
-              {cargoAlvo
-                ? 'O modelo está extraindo a grade programática específica deste cargo, decompondo matérias em tópicos temáticos com subtópicos e pesos pedagógicos.'
-                : 'O modelo está lendo o conteúdo programático do documento, agrupando matérias, extraindo tópicos e calculando pesos pedagógicos de 1 a 10. Aguarde alguns instantes...'}
+              A IA está analisando o conteúdo programático, consultando na web o histórico de questões dos últimos 3 a 5 anos da banca organizadora e calibrando os pesos com base em incidência real. Esse processo aprofundado pode levar de 15 a 35 segundos...
             </p>
           </div>
         ) : rascunho && rascunho.conteudo ? (
           <div className="space-y-5 animate-in fade-in duration-300">
             <div>
               <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="w-4 h-4" /> Extração Concluída com Sucesso
+                <CheckCircle2 className="w-4 h-4" /> Extração e Raio-X Concluídos com Sucesso
               </div>
               <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mt-1">
                 {rascunho.conteudo.nomeConcurso || 'Concurso Identificado'}
               </h2>
-              <div className="text-xs text-zinc-600 dark:text-zinc-400 font-mono mt-0.5">
-                Cargo Alvo: {rascunho.conteudo.cargo || 'Geral'} • {totalMaterias} {totalMaterias === 1 ? 'matéria' : 'matérias'} • {totalTopicos} {totalTopicos === 1 ? 'tópico' : 'tópicos'} • {totalSubtopicos} {totalSubtopicos === 1 ? 'subtópico' : 'subtópicos'}
+              <div className="text-xs text-zinc-600 dark:text-zinc-400 font-mono mt-1 flex flex-wrap items-center gap-1.5">
+                <span>Cargo: <strong className="text-zinc-800 dark:text-zinc-200 font-semibold">{rascunho.conteudo.cargo || 'Geral'}</strong></span>
+                {rascunho.conteudo.banca && (
+                  <span className="px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20 font-semibold">
+                    Banca: {rascunho.conteudo.banca}
+                  </span>
+                )}
+                {rascunho.conteudo.carreira && (
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 font-semibold">
+                    Área: {rascunho.conteudo.carreira}
+                  </span>
+                )}
+                <span>• {totalMaterias} {totalMaterias === 1 ? 'matéria' : 'matérias'} • {totalTopicos} {totalTopicos === 1 ? 'tópico' : 'tópicos'} • {totalSubtopicos} {totalSubtopicos === 1 ? 'subtópico' : 'subtópicos'}</span>
               </div>
             </div>
 
@@ -736,6 +745,12 @@ export const EditalParserView: React.FC<EditalParserViewProps> = ({ onPlanCreate
                                   <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 leading-snug">
                                     {top.titulo}
                                   </div>
+                                  {top.justificativaPeso && (
+                                    <div className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed bg-zinc-100/70 dark:bg-zinc-800/40 p-1.5 rounded-md border border-zinc-200/60 dark:border-zinc-800/60 flex items-start gap-1.5">
+                                      <Sparkles className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+                                      <span>{top.justificativaPeso}</span>
+                                    </div>
+                                  )}
                                   {hasSubtopics && (
                                     <div className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400 mt-1 flex items-center gap-1.5">
                                       <CornerDownRight className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />
@@ -748,7 +763,24 @@ export const EditalParserView: React.FC<EditalParserViewProps> = ({ onPlanCreate
                               </div>
 
                               {/* Badges de Peso e Metadados do Tópico */}
-                              <div className="flex items-center gap-1.5 shrink-0">
+                              <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                                {top.relevanciaBanca && (
+                                  <span
+                                    className={`font-mono text-[9px] px-1.5 py-0.5 rounded border font-semibold ${
+                                      top.relevanciaBanca === 'MUITO_ALTA'
+                                        ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/30'
+                                        : top.relevanciaBanca === 'ALTA'
+                                        ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/30'
+                                        : top.relevanciaBanca === 'MEDIA'
+                                        ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30'
+                                        : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700/60'
+                                    }`}
+                                  >
+                                    {top.relevanciaBanca === 'MUITO_ALTA' && '🔥 '}
+                                    {top.relevanciaBanca === 'ALTA' && '⚡ '}
+                                    {top.relevanciaBanca.replace('_', ' ')}
+                                  </span>
+                                )}
                                 <span
                                   className={`font-mono text-[10px] px-2 py-0.5 rounded border shrink-0 font-semibold ${
                                     (top.pesoEdital || 5) >= 8
