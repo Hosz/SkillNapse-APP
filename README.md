@@ -9,6 +9,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Lucide Icons](https://img.shields.io/badge/Lucide-Icons-F56565?style=for-the-badge&logo=lucide&logoColor=white)](https://lucide.dev/)
 [![Mobile Ready](https://img.shields.io/badge/Mobile-Fully_Responsive-48BB78?style=for-the-badge&logo=android&logoColor=white)](#-experiência-mobile-first-e-responsividade)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Apoie_o_Projeto-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/murilo_marques)
 
 ---
 
@@ -199,3 +200,5 @@ A camada de serviços (`src/services/api.ts`) implementa padrões avançados par
 Desenvolvido com excelência por **Murilo Henrique Marques Bento Santos (Hokyozu)**.
 
 Distribuído sob a licença open-source **MIT**. Consulte o arquivo de licença para mais informações.
+
+☕ **Apoie o projeto:** Se o SkillNapse foi útil para você, considere apoiar o desenvolvimento no [Ko-fi](https://ko-fi.com/murilo_marques).
