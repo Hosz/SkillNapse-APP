@@ -11,6 +11,13 @@ export interface SimuladoResumo {
   percentualAcerto: number;
 }
 
+export interface AlternativaQuestaoSimulado {
+  id: string;
+  letra: string;
+  texto: string;
+  correta?: boolean;
+}
+
 export interface QuestaoSimulado {
   id: string;
   topicoId?: string;
@@ -20,11 +27,22 @@ export interface QuestaoSimulado {
   dificuldade: 'FACIL' | 'MEDIA' | 'DIFICIL';
   banca?: string;
   ano?: number;
-  alternativas: Array<{
-    id: string;
-    letra: string;
-    texto: string;
-  }>;
+  alternativas: AlternativaQuestaoSimulado[];
+  alternativaCorretaId?: string;
+  letraCorreta?: string;
+  alternativaEscolhidaId?: string;
+  letraEscolhida?: string;
+  acertou?: boolean;
+  explicacaoGabarito?: string;
+}
+
+export interface ResultadoResolucaoQuestao {
+  acertou: boolean;
+  alternativaEscolhidaId?: string;
+  letraEscolhida?: string;
+  alternativaCorretaId?: string;
+  letraCorreta?: string;
+  explicacaoGabarito?: string;
 }
 
 export interface SimuladoDetalhe {
@@ -79,9 +97,9 @@ export const simuladoService = {
     alternativaEscolhidaId: string,
     simuladoId: string,
     topicoId?: string
-  ): Promise<boolean> {
+  ): Promise<ResultadoResolucaoQuestao> {
     try {
-      const res = await ApiService.request<{ acertou: boolean }>(`/questoes/${questaoId}/responder`, {
+      const res = await ApiService.request<ResultadoResolucaoQuestao>(`/questoes/${questaoId}/responder`, {
         method: 'POST',
         body: JSON.stringify({
           alternativaEscolhidaId,
@@ -90,16 +108,27 @@ export const simuladoService = {
           ...(topicoId ? { topicoId } : {}),
         }),
       });
-      return res?.acertou ?? true;
+      return (
+        res || {
+          acertou: true,
+          alternativaEscolhidaId,
+        }
+      );
     } catch {
-      return true;
+      return {
+        acertou: true,
+        alternativaEscolhidaId,
+      };
     }
   },
 
-  async concluirSimulado(simuladoId: string): Promise<SimuladoResumo> {
-    return await ApiService.request<SimuladoResumo>(`/simulados/${simuladoId}/concluir`, {
-      method: 'PATCH',
-    });
+  async concluirSimulado(simuladoId: string): Promise<SimuladoResumo & { questoes?: QuestaoSimulado[] }> {
+    return await ApiService.request<SimuladoResumo & { questoes?: QuestaoSimulado[] }>(
+      `/simulados/${simuladoId}/concluir`,
+      {
+        method: 'PATCH',
+      }
+    );
   },
 
   async obterSimulado(simuladoId: string): Promise<SimuladoDetalhe | null> {

@@ -15,6 +15,8 @@ import {
   RotateCcw,
   BookOpen,
   Layers,
+  Check,
+  AlertCircle,
 } from 'lucide-react';
 import { simuladoService, questaoService, planoService } from '../../services';
 import { isQuotaExceededError, isAbortError } from '../../services/api';
@@ -197,6 +199,19 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [respostas, setRespostas] = useState<Record<string, string>>({}); // { questionId: altId }
   const [examFinished, setExamFinished] = useState(false);
+  const [gabaritoResultados, setGabaritoResultados] = useState<
+    Record<
+      string,
+      {
+        acertou: boolean;
+        alternativaEscolhidaId?: string;
+        letraEscolhida?: string;
+        alternativaCorretaId?: string;
+        letraCorreta?: string;
+        explicacaoGabarito?: string;
+      }
+    >
+  >({});
   const [examResult, setExamResult] = useState<{
     total: number;
     acertos: number;
@@ -246,12 +261,92 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
     }
   }, [initialFilter]);
 
-  const handleIniciarOuRepetirSimulado = async (simuladoId: string) => {
+  const handleVisualizarGabarito = async (simuladoId: string) => {
+    let detalhe = await simuladoService.obterSimulado(simuladoId);
+    if (!detalhe || !detalhe.questoes || detalhe.questoes.length === 0) {
+      detalhe = obterSimuladoLocal(simuladoId);
+    } else {
+      salvarSimuladoLocal(detalhe);
+    }
+
+    if (!detalhe || !detalhe.questoes || detalhe.questoes.length === 0) {
+      toast.error(
+        'As questões deste simulado não puderam ser recuperadas para exibir o gabarito.',
+        'Gabarito Indisponível'
+      );
+      return;
+    }
+
+    const novosResultados: Record<
+      string,
+      {
+        acertou: boolean;
+        alternativaEscolhidaId?: string;
+        letraEscolhida?: string;
+        alternativaCorretaId?: string;
+        letraCorreta?: string;
+        explicacaoGabarito?: string;
+      }
+    > = {};
+    const novasRespostas: Record<string, string> = {};
+    let totalAcertos = 0;
+
+    detalhe.questoes.forEach((q) => {
+      const corretaAlt = q.alternativas.find((a) => a.correta);
+      const altCorretaId = q.alternativaCorretaId || corretaAlt?.id;
+      const letraCorreta = q.letraCorreta || corretaAlt?.letra;
+
+      let altEscolhida = q.alternativaEscolhidaId;
+      if (!altEscolhida && respostas[q.id]) {
+        altEscolhida = respostas[q.id];
+      }
+      if (altEscolhida) {
+        novasRespostas[q.id] = altEscolhida;
+      }
+
+      const acertou =
+        q.acertou !== undefined && q.acertou !== null
+          ? q.acertou
+          : altEscolhida
+          ? altEscolhida === altCorretaId
+          : false;
+
+      if (acertou) {
+        totalAcertos++;
+      }
+
+      novosResultados[q.id] = {
+        acertou,
+        alternativaEscolhidaId: altEscolhida,
+        letraEscolhida:
+          q.letraEscolhida ||
+          (altEscolhida ? q.alternativas.find((a) => a.id === altEscolhida)?.letra : undefined),
+        alternativaCorretaId: altCorretaId,
+        letraCorreta: letraCorreta,
+        explicacaoGabarito: q.explicacaoGabarito,
+      };
+    });
+
+    setActiveSimulado(detalhe);
+    setCurrentQuestionIndex(0);
+    setRespostas(novasRespostas);
+    setGabaritoResultados(novosResultados);
+    setExamFinished(true);
+    setExamResult({
+      total: detalhe.questoes.length,
+      acertos: totalAcertos,
+      pct: Math.round((totalAcertos / (detalhe.questoes.length || 1)) * 100),
+    });
+    setTimerSeconds(0);
+    setIsModalOpen(false);
+  };
+
+  const handleIniciarOuRepetirSimulado = async (simuladoId: string, forcarReinicio = false) => {
     // 1. Tenta carregar do cache local
     let detalhe = obterSimuladoLocal(simuladoId);
 
-    // 2. Se não estiver no cache local ou estiver sem questões, busca na API
-    if (!detalhe || !detalhe.questoes || detalhe.questoes.length === 0) {
+    // 2. Se não estiver no cache local ou se forçar reinício, busca na API
+    if (!detalhe || !detalhe.questoes || detalhe.questoes.length === 0 || forcarReinicio) {
       detalhe = await simuladoService.obterSimulado(simuladoId);
       if (detalhe && detalhe.questoes && detalhe.questoes.length > 0) {
         salvarSimuladoLocal(detalhe);
@@ -267,10 +362,17 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
       return;
     }
 
-    // 4. Inicia a prova com segurança
+    // 4. Se o simulado já estiver concluído e não for um reinício forçado, exibe diretamente o gabarito
+    if (detalhe.concluido && !forcarReinicio) {
+      await handleVisualizarGabarito(simuladoId);
+      return;
+    }
+
+    // 5. Inicia a prova com segurança
     setActiveSimulado(detalhe);
     setCurrentQuestionIndex(0);
     setRespostas({});
+    setGabaritoResultados({});
     setExamFinished(false);
     setExamResult(null);
     setTimerSeconds(0);
@@ -564,6 +666,17 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
     let acertos = 0;
     const total = activeSimulado.questoes.length;
     const topicoStats: Record<string, { total: number; acertos: number; nome?: string }> = {};
+    const novosResultados: Record<
+      string,
+      {
+        acertou: boolean;
+        alternativaEscolhidaId?: string;
+        letraEscolhida?: string;
+        alternativaCorretaId?: string;
+        letraCorreta?: string;
+        explicacaoGabarito?: string;
+      }
+    > = {};
 
     // Submete respostas para a API vinculando a questão ao seu tópico
     for (const q of activeSimulado.questoes) {
@@ -580,22 +693,76 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
         topicoStats[tId].total++;
       }
       if (altEscolhida) {
-        const acertou = await simuladoService.responderQuestao(
+        const res = await simuladoService.responderQuestao(
           q.id,
           altEscolhida,
           activeSimulado.simuladoId,
           q.topicoId
         );
+        const acertou = !!res?.acertou;
         if (acertou) {
           acertos++;
           if (tId) {
             topicoStats[tId].acertos++;
           }
         }
+        novosResultados[q.id] = {
+          acertou,
+          alternativaEscolhidaId: res?.alternativaEscolhidaId || altEscolhida,
+          letraEscolhida:
+            res?.letraEscolhida || q.alternativas.find((a) => a.id === altEscolhida)?.letra,
+          alternativaCorretaId: res?.alternativaCorretaId,
+          letraCorreta: res?.letraCorreta,
+          explicacaoGabarito: res?.explicacaoGabarito || q.explicacaoGabarito,
+        };
+      } else {
+        const corretaAlt = q.alternativas.find((a) => a.correta);
+        novosResultados[q.id] = {
+          acertou: false,
+          alternativaCorretaId: q.alternativaCorretaId || corretaAlt?.id,
+          letraCorreta: q.letraCorreta || corretaAlt?.letra,
+          explicacaoGabarito: q.explicacaoGabarito,
+        };
       }
     }
 
-    await simuladoService.concluirSimulado(activeSimulado.simuladoId);
+    const conclusao = await simuladoService.concluirSimulado(activeSimulado.simuladoId);
+
+    if (conclusao && Array.isArray(conclusao.questoes)) {
+      conclusao.questoes.forEach((q) => {
+        const corretaAlt = q.alternativas.find((a) => a.correta);
+        const altCorretaId = q.alternativaCorretaId || corretaAlt?.id;
+        const letraCorreta = q.letraCorreta || corretaAlt?.letra;
+        const altEscolhida = q.alternativaEscolhidaId || respostas[q.id];
+
+        novosResultados[q.id] = {
+          acertou:
+            q.acertou !== undefined && q.acertou !== null
+              ? q.acertou
+              : novosResultados[q.id]?.acertou ?? false,
+          alternativaEscolhidaId: altEscolhida,
+          letraEscolhida: q.letraEscolhida || novosResultados[q.id]?.letraEscolhida,
+          alternativaCorretaId: altCorretaId || novosResultados[q.id]?.alternativaCorretaId,
+          letraCorreta: letraCorreta || novosResultados[q.id]?.letraCorreta,
+          explicacaoGabarito: q.explicacaoGabarito || novosResultados[q.id]?.explicacaoGabarito,
+        };
+      });
+
+      const updatedSimulado: SimuladoDetalhe = {
+        ...activeSimulado,
+        concluido: true,
+        questoes: conclusao.questoes,
+      };
+      setActiveSimulado(updatedSimulado);
+      salvarSimuladoLocal(updatedSimulado);
+    } else {
+      const updatedSimulado: SimuladoDetalhe = {
+        ...activeSimulado,
+        concluido: true,
+      };
+      setActiveSimulado(updatedSimulado);
+      salvarSimuladoLocal(updatedSimulado);
+    }
 
     // Atualiza proficiência dos tópicos baseado no aproveitamento deste simulado
     const topicosAtualizados: Array<{
@@ -634,6 +801,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
     }
 
     const pct = Math.round((acertos / total) * 100);
+    setGabaritoResultados(novosResultados);
     setExamResult({ total, acertos, pct, topicos: topicosAtualizados });
     setExamFinished(true);
     carregarSimulados();
@@ -683,6 +851,10 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
           <div className="flex items-center justify-between sm:justify-start gap-2.5 sm:gap-4 min-w-0 flex-1">
             <button
               onClick={() => {
+                if (examFinished) {
+                  setActiveSimulado(null);
+                  return;
+                }
                 setConfirmConfig({
                   isOpen: true,
                   title: 'Sair do Simulado em Andamento',
@@ -697,7 +869,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
                 });
               }}
               className="p-1.5 sm:p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer shrink-0"
-              title="Sair do Simulado"
+              title={examFinished ? 'Voltar à Lista' : 'Sair do Simulado'}
             >
               <X className="w-4 h-4" />
             </button>
@@ -707,9 +879,15 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
                 <span className="truncate max-w-[200px] sm:max-w-md" title={activeSimulado.titulo}>
                   {activeSimulado.titulo}
                 </span>
-                <span className="hidden sm:inline-flex text-[10px] font-mono bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 px-1.5 py-0.2 rounded-full font-semibold shrink-0">
-                  IA Adaptativa
-                </span>
+                {examFinished ? (
+                  <span className="hidden sm:inline-flex text-[10px] font-mono bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 px-1.5 py-0.2 rounded-full font-semibold shrink-0">
+                    Modo Gabarito
+                  </span>
+                ) : (
+                  <span className="hidden sm:inline-flex text-[10px] font-mono bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 px-1.5 py-0.2 rounded-full font-semibold shrink-0">
+                    IA Adaptativa
+                  </span>
+                )}
               </h2>
               <div className="hidden sm:block text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
                 Questão {currentQuestionIndex + 1} de {totalQ}
@@ -817,50 +995,179 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
               </div>
             )}
 
-            {qAtual && (
-              <div className="space-y-6">
-                <div className="flex items-center gap-2 text-xs font-mono text-zinc-600 dark:text-zinc-400">
-                  <span className="px-2.5 py-0.5 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 font-medium">
-                    {qAtual.banca || 'Banca Oficial'}
-                  </span>
-                  <span>•</span>
-                  <span>{qAtual.assuntoGeral}</span>
-                </div>
-
-                <div className="text-sm md:text-base text-zinc-900 dark:text-zinc-100 font-medium leading-relaxed bg-white dark:bg-zinc-900/40 p-5 rounded-2xl border-2 border-zinc-200 dark:border-zinc-800/80 shadow-2xs">
-                  {qAtual.enunciado}
-                </div>
-
-                {/* Alternativas */}
-                <div className="space-y-2.5">
-                  {qAtual.alternativas.map((alt) => {
-                    const isSelected = respostas[qAtual.id] === alt.id;
-                    return (
-                      <div
-                        key={alt.id}
-                        onClick={() => handleSelectAlternativa(qAtual.id, alt.id)}
-                        className={`p-4 rounded-xl border-2 text-xs md:text-sm flex items-start gap-3 cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-indigo-50 dark:bg-indigo-600/15 border-indigo-500 text-indigo-950 dark:text-zinc-100 shadow-sm font-medium'
-                            : 'bg-white dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-800 dark:text-zinc-300'
+            {qAtual && (() => {
+              const gabAtual = gabaritoResultados[qAtual.id];
+              return (
+                <div className="space-y-6">
+                  {/* Banner de Status da Questão quando Concluído */}
+                  {examFinished && (
+                    <div
+                      className={`p-4 rounded-2xl border-2 flex items-center justify-between gap-3 animate-in fade-in ${
+                        gabAtual?.alternativaEscolhidaId
+                          ? gabAtual.acertou
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                            : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                          : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {gabAtual?.alternativaEscolhidaId ? (
+                          gabAtual.acertou ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          ) : (
+                            <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+                          )
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                        )}
+                        <div>
+                          <div className="text-xs sm:text-sm font-bold">
+                            {gabAtual?.alternativaEscolhidaId
+                              ? gabAtual.acertou
+                                ? 'Você acertou esta questão!'
+                                : 'Você errou esta questão.'
+                              : 'Questão deixada em branco (não respondida).'}
+                          </div>
+                          <div className="text-[11px] opacity-90 mt-0.5">
+                            {gabAtual?.letraEscolhida && (
+                              <span>
+                                Sua resposta:{' '}
+                                <strong className="font-mono font-bold">
+                                  ({gabAtual.letraEscolhida})
+                                </strong>{' '}
+                                •{' '}
+                              </span>
+                            )}
+                            <span>
+                              Gabarito oficial:{' '}
+                              <strong className="font-mono font-bold">
+                                (
+                                {gabAtual?.letraCorreta ||
+                                  qAtual.alternativas.find((a) => a.correta)?.letra ||
+                                  qAtual.letraCorreta ||
+                                  '-'}
+                                )
+                              </strong>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2.5 py-1 rounded-xl text-xs font-mono font-bold border uppercase shrink-0 ${
+                          gabAtual?.alternativaEscolhidaId
+                            ? gabAtual.acertou
+                              ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400'
+                              : 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-400'
+                            : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400'
                         }`}
                       >
-                        <span
-                          className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono font-bold shrink-0 text-xs ${
-                            isSelected
-                              ? 'bg-indigo-600 text-white shadow-xs'
-                              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400'
-                          }`}
+                        {gabAtual?.alternativaEscolhidaId
+                          ? gabAtual.acertou
+                            ? 'ACERTO'
+                            : 'ERRO'
+                          : 'EM BRANCO'}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 text-xs font-mono text-zinc-600 dark:text-zinc-400">
+                    <span className="px-2.5 py-0.5 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 font-medium">
+                      {qAtual.banca || 'Banca Oficial'}
+                    </span>
+                    <span>•</span>
+                    <span>{qAtual.assuntoGeral}</span>
+                  </div>
+
+                  <div className="text-sm md:text-base text-zinc-900 dark:text-zinc-100 font-medium leading-relaxed bg-white dark:bg-zinc-900/40 p-5 rounded-2xl border-2 border-zinc-200 dark:border-zinc-800/80 shadow-2xs">
+                    {qAtual.enunciado}
+                  </div>
+
+                  {/* Alternativas */}
+                  <div className="space-y-2.5">
+                    {qAtual.alternativas.map((alt) => {
+                      const isSelected =
+                        respostas[qAtual.id] === alt.id ||
+                        gabAtual?.alternativaEscolhidaId === alt.id;
+                      const isCorretaOficial =
+                        alt.id === gabAtual?.alternativaCorretaId ||
+                        alt.letra === gabAtual?.letraCorreta ||
+                        Boolean(alt.correta) ||
+                        alt.id === qAtual.alternativaCorretaId ||
+                        alt.letra === qAtual.letraCorreta;
+
+                      let altClasses = '';
+                      let badgeClasses = '';
+
+                      if (examFinished) {
+                        if (isCorretaOficial) {
+                          altClasses =
+                            'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-medium shadow-sm';
+                          badgeClasses = 'bg-emerald-600 text-white';
+                        } else if (isSelected && !isCorretaOficial) {
+                          altClasses =
+                            'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-950 dark:text-rose-100 font-medium shadow-sm';
+                          badgeClasses = 'bg-rose-600 text-white';
+                        } else {
+                          altClasses =
+                            'opacity-60 bg-white/60 dark:bg-zinc-900/20 border-zinc-200 dark:border-zinc-800/60 text-zinc-600 dark:text-zinc-400';
+                          badgeClasses = 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400';
+                        }
+                      } else {
+                        if (isSelected) {
+                          altClasses =
+                            'bg-indigo-50 dark:bg-indigo-600/15 border-indigo-500 text-indigo-950 dark:text-zinc-100 shadow-sm font-medium';
+                          badgeClasses = 'bg-indigo-600 text-white shadow-xs';
+                        } else {
+                          altClasses =
+                            'bg-white dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-800 dark:text-zinc-300';
+                          badgeClasses = 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400';
+                        }
+                      }
+
+                      return (
+                        <div
+                          key={alt.id}
+                          onClick={() => !examFinished && handleSelectAlternativa(qAtual.id, alt.id)}
+                          className={`p-4 rounded-xl border-2 text-xs md:text-sm flex items-start gap-3 transition-all ${
+                            !examFinished ? 'cursor-pointer' : 'cursor-default'
+                          } ${altClasses}`}
                         >
-                          {alt.letra}
-                        </span>
-                        <div className="pt-0.5 leading-relaxed flex-1">{alt.texto}</div>
+                          <span
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono font-bold shrink-0 text-xs ${badgeClasses}`}
+                          >
+                            {alt.letra}
+                          </span>
+                          <div className="pt-0.5 leading-relaxed flex-1">{alt.texto}</div>
+                          {examFinished && isCorretaOficial && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-400 text-[10px] font-bold uppercase shrink-0 flex items-center gap-1 self-center">
+                              <Check className="w-3 h-3" /> Gabarito Oficial
+                            </span>
+                          )}
+                          {examFinished && isSelected && !isCorretaOficial && (
+                            <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-400 text-[10px] font-bold uppercase shrink-0 flex items-center gap-1 self-center">
+                              <X className="w-3 h-3" /> Sua Resposta
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Comentário e Justificativa do Gabarito */}
+                  {examFinished && (gabAtual?.explicacaoGabarito || qAtual.explicacaoGabarito) && (
+                    <div className="p-5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border-2 border-indigo-200/80 dark:border-indigo-800/60 space-y-2 animate-in fade-in">
+                      <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                        <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <span>Comentário & Justificativa do Gabarito</span>
                       </div>
-                    );
-                  })}
+                      <div className="text-xs sm:text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed whitespace-pre-line bg-white/60 dark:bg-zinc-900/40 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40">
+                        {gabAtual?.explicacaoGabarito || qAtual.explicacaoGabarito}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Bottom Question Controls */}
             <div className="flex items-center justify-between pt-4 border-t-2 border-zinc-200 dark:border-zinc-800">
@@ -868,7 +1175,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
                 type="button"
                 disabled={currentQuestionIndex === 0}
                 onClick={() => setCurrentQuestionIndex((prev) => prev - 1)}
-                className="px-4 py-2 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition-all border border-zinc-200 dark:border-zinc-800 shadow-2xs"
+                className="px-4 py-2 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition-all border border-zinc-200 dark:border-zinc-800 shadow-2xs cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" /> Questão Anterior
               </button>
@@ -877,7 +1184,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
                 type="button"
                 disabled={currentQuestionIndex === totalQ - 1}
                 onClick={() => setCurrentQuestionIndex((prev) => prev + 1)}
-                className="px-4 py-2 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition-all border border-zinc-200 dark:border-zinc-800 shadow-2xs"
+                className="px-4 py-2 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition-all border border-zinc-200 dark:border-zinc-800 shadow-2xs cursor-pointer"
               >
                 Próxima Questão <ChevronRight className="w-4 h-4" />
               </button>
@@ -885,31 +1192,125 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
           </div>
 
           {/* Right Question Palette Drawer */}
-          <div className="w-full md:w-64 border-t md:border-t-0 md:border-l-2 border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/60 p-5 space-y-4 shrink-0">
-            <div className="text-xs font-mono uppercase tracking-wider text-zinc-600 dark:text-zinc-400 font-bold">
-              Gabarito do Simulado
+          <div className="w-full md:w-64 border-t md:border-t-0 md:border-l-2 border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/60 p-5 space-y-4 shrink-0 overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-mono uppercase tracking-wider text-zinc-600 dark:text-zinc-400 font-bold">
+                {examFinished ? 'Gabarito Final' : 'Gabarito do Simulado'}
+              </div>
+              {examFinished && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-bold">
+                  {Math.round(
+                    (Object.values(gabaritoResultados).filter((g) => g.acertou).length / totalQ) *
+                      100
+                  )}
+                  % acertos
+                </span>
+              )}
             </div>
+
+            {/* Resumo de Acertos / Erros / Em branco no topo da paleta quando finalizado */}
+            {examFinished && (
+              <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-center">
+                <div className="p-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/80">
+                  <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">
+                    Acertos
+                  </div>
+                  <div className="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-300">
+                    {Object.values(gabaritoResultados).filter((g) => g.acertou).length}
+                  </div>
+                </div>
+                <div className="p-1 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/80">
+                  <div className="text-[10px] text-rose-700 dark:text-rose-400 font-semibold">
+                    Erros
+                  </div>
+                  <div className="text-sm font-bold font-mono text-rose-700 dark:text-rose-300">
+                    {
+                      Object.values(gabaritoResultados).filter(
+                        (g) => g.alternativaEscolhidaId && !g.acertou
+                      ).length
+                    }
+                  </div>
+                </div>
+                <div className="p-1 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
+                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-semibold">
+                    Em branco
+                  </div>
+                  <div className="text-sm font-bold font-mono text-zinc-600 dark:text-zinc-300">
+                    {totalQ -
+                      Object.values(gabaritoResultados).filter((g) => g.alternativaEscolhidaId)
+                        .length}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-5 gap-2">
               {activeSimulado.questoes.map((q, idx) => {
-                const isRespondida = !!respostas[q.id];
                 const isCurrent = idx === currentQuestionIndex;
+                const gItem = gabaritoResultados[q.id];
+                const isRespondida = !!respostas[q.id] || !!gItem?.alternativaEscolhidaId;
+
+                let btnClass = '';
+
+                if (examFinished) {
+                  if (gItem?.alternativaEscolhidaId) {
+                    if (gItem.acertou) {
+                      btnClass = isCurrent
+                        ? 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-emerald-400 shadow-sm'
+                        : 'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-400 dark:border-emerald-600 hover:bg-emerald-500/30';
+                    } else {
+                      btnClass = isCurrent
+                        ? 'bg-rose-600 text-white border-rose-700 ring-2 ring-rose-400 shadow-sm'
+                        : 'bg-rose-500/15 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-400 dark:border-rose-600 hover:bg-rose-500/30';
+                    }
+                  } else {
+                    btnClass = isCurrent
+                      ? 'bg-zinc-600 text-white border-zinc-700 ring-2 ring-zinc-400'
+                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-zinc-300 dark:border-zinc-700';
+                  }
+                } else {
+                  if (isCurrent) {
+                    btnClass = 'border-indigo-500 ring-2 ring-indigo-500/40 text-white bg-indigo-600';
+                  } else if (isRespondida) {
+                    btnClass =
+                      'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-200';
+                  } else {
+                    btnClass =
+                      'bg-white dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800/80 text-zinc-500 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300';
+                  }
+                }
+
                 return (
                   <button
                     key={q.id}
                     onClick={() => setCurrentQuestionIndex(idx)}
-                    className={`h-9 rounded-lg font-mono text-xs font-semibold flex items-center justify-center border transition-all ${
-                      isCurrent
-                        ? 'border-indigo-500 ring-2 ring-indigo-500/40 text-white bg-indigo-600'
-                        : isRespondida
-                        ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-200'
-                        : 'bg-white dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800/80 text-zinc-500 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'
-                    }`}
+                    className={`h-9 rounded-lg font-mono text-xs font-semibold flex items-center justify-center border transition-all cursor-pointer ${btnClass}`}
+                    title={`Questão ${idx + 1}`}
                   >
                     {idx + 1}
                   </button>
                 );
               })}
             </div>
+
+            {/* Legenda quando finalizado */}
+            {examFinished && (
+              <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 space-y-1.5 text-[11px] text-zinc-600 dark:text-zinc-400">
+                <div className="font-semibold text-zinc-700 dark:text-zinc-300">Legenda:</div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded bg-emerald-500 shrink-0" />
+                  <span>Acertou questão</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded bg-rose-500 shrink-0" />
+                  <span>Errou questão</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded bg-zinc-300 dark:bg-zinc-700 shrink-0" />
+                  <span>Não respondida</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1221,14 +1622,25 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
                           <span>Iniciar Simulado</span>
                         </button>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleIniciarOuRepetirSimulado(sim.id)}
-                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                          <span>Praticar Novamente</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleVisualizarGabarito(sim.id)}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Ver Gabarito</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleIniciarOuRepetirSimulado(sim.id, true)}
+                            className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 text-xs font-medium flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
+                            title="Refazer simulado do início"
+                          >
+                            <RotateCcw className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                            <span>Refazer</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
