@@ -131,6 +131,26 @@ export const simuladoService = {
     );
   },
 
+  async reiniciarSimulado(simuladoId: string): Promise<SimuladoDetalhe | null> {
+    try {
+      const data = await ApiService.request<any>(`/simulados/${simuladoId}/reiniciar`, {
+        method: 'PATCH',
+      });
+      if (!data) return null;
+      return {
+        simuladoId: data.simuladoId || data.id || simuladoId,
+        titulo: data.titulo || 'Simulado',
+        tipo: data.tipo || 'ADAPTATIVO_IA',
+        concluido: !!data.concluido,
+        criadoEm: data.criadoEm || new Date().toISOString(),
+        totalQuestoes: data.totalQuestoes || (data.questoes?.length ?? 0),
+        questoes: Array.isArray(data.questoes) ? data.questoes : [],
+      };
+    } catch {
+      return null;
+    }
+  },
+
   async obterSimulado(simuladoId: string): Promise<SimuladoDetalhe | null> {
     try {
       const data = await ApiService.request<any>(`/simulados/${simuladoId}`);

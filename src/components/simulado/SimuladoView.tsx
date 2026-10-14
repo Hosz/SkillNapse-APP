@@ -342,15 +342,17 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
   };
 
   const handleIniciarOuRepetirSimulado = async (simuladoId: string, forcarReinicio = false) => {
-    // 1. Tenta carregar do cache local
-    let detalhe = obterSimuladoLocal(simuladoId);
+    // 1. Se forçar reinício (refazer), chama o endpoint de reiniciar no backend
+    if (forcarReinicio) {
+      await simuladoService.reiniciarSimulado(simuladoId);
+    }
 
-    // 2. Se não estiver no cache local ou se forçar reinício, busca na API
-    if (!detalhe || !detalhe.questoes || detalhe.questoes.length === 0 || forcarReinicio) {
-      detalhe = await simuladoService.obterSimulado(simuladoId);
-      if (detalhe && detalhe.questoes && detalhe.questoes.length > 0) {
-        salvarSimuladoLocal(detalhe);
-      }
+    // 2. Busca detalhes atualizados na API ou cache local
+    let detalhe = await simuladoService.obterSimulado(simuladoId);
+    if (!detalhe || !detalhe.questoes || detalhe.questoes.length === 0) {
+      detalhe = obterSimuladoLocal(simuladoId);
+    } else {
+      salvarSimuladoLocal(detalhe);
     }
 
     // 3. Validação defensiva para evitar qualquer tela branca
@@ -368,8 +370,15 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
       return;
     }
 
-    // 5. Inicia a prova com segurança
-    setActiveSimulado(detalhe);
+    // 5. Garante que o estado local e cache estejam abertos
+    const detalheAberto: SimuladoDetalhe = {
+      ...detalhe,
+      concluido: false,
+    };
+    salvarSimuladoLocal(detalheAberto);
+
+    // 6. Inicia a prova limpa com segurança
+    setActiveSimulado(detalheAberto);
     setCurrentQuestionIndex(0);
     setRespostas({});
     setGabaritoResultados({});
@@ -377,6 +386,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
     setExamResult(null);
     setTimerSeconds(0);
     setIsModalOpen(false);
+    carregarSimulados();
   };
 
   // Se um simulado específico foi solicitado diretamente (ex: vindo da tela de análise de lacunas)
@@ -662,6 +672,11 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
 
   const executarConclusaoExame = async () => {
     if (!activeSimulado) return;
+
+    // Se por qualquer eventualidade o simulado ainda constar como concluído, reabre antes de submeter
+    if (activeSimulado.concluido) {
+      await simuladoService.reiniciarSimulado(activeSimulado.simuladoId);
+    }
 
     let acertos = 0;
     const total = activeSimulado.questoes.length;
