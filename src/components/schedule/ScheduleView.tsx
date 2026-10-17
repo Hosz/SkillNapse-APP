@@ -224,10 +224,11 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
       const grade = await cronogramaService.obterGradeSemanal();
       if (grade && grade.length > 0) {
         setCronograma(grade);
-        const diaAtual = diaAlvo || selectedDay;
+        if (diaAlvo) {
+          setSelectedDay(diaAlvo);
+        }
         const blocoAlvo = blocoIdAlvo ? grade.find((b) => b.id === blocoIdAlvo) : null;
-        const primeiroDoDia = grade.find((b) => b.diaSemana === diaAtual);
-        setSelectedBloco(blocoAlvo || primeiroDoDia || null);
+        setSelectedBloco(blocoAlvo || null);
       } else {
         setCronograma([]);
         setSelectedBloco(null);
@@ -245,8 +246,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   const handleSelectDay = (dia: DiaSemana) => {
     setSelectedDay(dia);
-    const primeiro = cronograma.find((b) => b.diaSemana === dia);
-    setSelectedBloco(primeiro || null);
+    setSelectedBloco(null);
   };
 
   // Carrega lista de planos disponíveis para o seletor da IA
@@ -1018,7 +1018,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
               return (
                 <div
                   key={bloco.id}
-                  onClick={() => setSelectedBloco(bloco)}
+                  onClick={() => setSelectedBloco((prev) => (prev?.id === bloco.id ? null : bloco))}
                   className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-start justify-between gap-4 ${
                     isSelected
                       ? 'bg-white dark:bg-zinc-900 border-indigo-500 ring-1 ring-indigo-500/40 shadow-sm'
