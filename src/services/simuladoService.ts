@@ -1,0 +1,192 @@
+import { ApiService } from './api';
+
+export interface SimuladoResumo {
+  id: string;
+  titulo: string;
+  tipo: 'MANUAL' | 'ADAPTATIVO_IA';
+  concluido: boolean;
+  criadoEm: string;
+  totalQuestoesRespondidas: number;
+  totalAcertos: number;
+  percentualAcerto: number;
+}
+
+export interface AlternativaQuestaoSimulado {
+  id: string;
+  letra: string;
+  texto: string;
+  correta?: boolean;
+}
+
+export interface QuestaoSimulado {
+  id: string;
+  topicoId?: string;
+  assuntoGeral: string;
+  topicoReferencia?: string;
+  enunciado: string;
+  dificuldade: 'FACIL' | 'MEDIA' | 'DIFICIL';
+  banca?: string;
+  ano?: number;
+  alternativas: AlternativaQuestaoSimulado[];
+  alternativaCorretaId?: string;
+  letraCorreta?: string;
+  alternativaEscolhidaId?: string;
+  letraEscolhida?: string;
+  acertou?: boolean;
+  explicacaoGabarito?: string;
+}
+
+export interface ResultadoResolucaoQuestao {
+  acertou: boolean;
+  alternativaEscolhidaId?: string;
+  letraEscolhida?: string;
+  alternativaCorretaId?: string;
+  letraCorreta?: string;
+  explicacaoGabarito?: string;
+}
+
+export interface SimuladoDetalhe {
+  simuladoId: string;
+  titulo: string;
+  tipo: 'MANUAL' | 'ADAPTATIVO_IA';
+  concluido: boolean;
+  criadoEm: string;
+  totalQuestoes: number;
+  questoes: QuestaoSimulado[];
+}
+
+export interface GerarSimuladoPayload {
+  planoEstudoId: string;
+  quantidadeQuestoes?: number;
+  bancaAlvo?: string;
+  topicoIds?: string[];
+  titulo?: string;
+}
+
+export const simuladoService = {
+  async listarSimulados(): Promise<SimuladoResumo[]> {
+    try {
+      const data = await ApiService.request<{ content: SimuladoResumo[] }>('/simulados');
+      return data?.content || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async gerarSimuladoAdaptativo(payload: GerarSimuladoPayload, signal?: AbortSignal): Promise<SimuladoDetalhe> {
+    const isUUID = (val?: string): boolean =>
+      !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+
+    const validTopicoIds = (payload.topicoIds || []).filter((id) => isUUID(id));
+
+    const res = await ApiService.request<SimuladoDetalhe>('/simulados/adaptativo/gerar', {
+      method: 'POST',
+      signal,
+      body: JSON.stringify({
+        planoEstudoId: payload.planoEstudoId,
+        quantidadeQuestoes: Math.max(3, Math.min(90, payload.quantidadeQuestoes || 10)),
+        bancaAlvo: payload.bancaAlvo || 'CESPE / Cebraspe',
+        topicoIds: validTopicoIds.length > 0 ? validTopicoIds : undefined,
+        ...(payload.titulo ? { titulo: payload.titulo.trim() } : {}),
+      }),
+    });
+
+    if (res && res.simuladoId) {
+      try {
+        localStorage.setItem(`skillnapse_simulado_${res.simuladoId}`, JSON.stringify(res));
+      } catch {
+        // Silencia erro de quota de storage se houver
+      }
+    }
+
+    return res;
+  },
+
+  async responderQuestao(
+    questaoId: string,
+    alternativaEscolhidaId: string,
+    simuladoId: string,
+    topicoId?: string
+  ): Promise<ResultadoResolucaoQuestao> {
+    try {
+      const res = await ApiService.request<ResultadoResolucaoQuestao>(`/questoes/${questaoId}/responder`, {
+        method: 'POST',
+        body: JSON.stringify({
+          alternativaEscolhidaId,
+          tempoGastoSegundos: 45,
+          simuladoId,
+          ...(topicoId ? { topicoId } : {}),
+        }),
+      });
+      return (
+        res || {
+          acertou: true,
+          alternativaEscolhidaId,
+        }
+      );
+    } catch {
+      return {
+        acertou: true,
+        alternativaEscolhidaId,
+      };
+    }
+  },
+
+  async concluirSimulado(simuladoId: string): Promise<SimuladoResumo & { questoes?: QuestaoSimulado[] }> {
+    return await ApiService.request<SimuladoResumo & { questoes?: QuestaoSimulado[] }>(
+      `/simulados/${simuladoId}/concluir`,
+      {
+        method: 'PATCH',
+      }
+    );
+  },
+
+  async reiniciarSimulado(simuladoId: string): Promise<SimuladoDetalhe | null> {
+    try {
+      const data = await ApiService.request<any>(`/simulados/${simuladoId}/reiniciar`, {
+        method: 'PATCH',
+      });
+      if (!data) return null;
+      return {
+        simuladoId: data.simuladoId || data.id || simuladoId,
+        titulo: data.titulo || 'Simulado',
+        tipo: data.tipo || 'ADAPTATIVO_IA',
+        concluido: !!data.concluido,
+        criadoEm: data.criadoEm || new Date().toISOString(),
+        totalQuestoes: data.totalQuestoes || (data.questoes?.length ?? 0),
+        questoes: Array.isArray(data.questoes) ? data.questoes : [],
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async obterSimulado(simuladoId: string): Promise<SimuladoDetalhe | null> {
+    try {
+      const data = await ApiService.request<any>(`/simulados/${simuladoId}`);
+      if (!data) return null;
+      return {
+        simuladoId: data.simuladoId || data.id || simuladoId,
+        titulo: data.titulo || 'Simulado',
+        tipo: data.tipo || 'ADAPTATIVO_IA',
+        concluido: !!data.concluido,
+        criadoEm: data.criadoEm || new Date().toISOString(),
+        totalQuestoes: data.totalQuestoes || (data.questoes?.length ?? 0),
+        questoes: Array.isArray(data.questoes) ? data.questoes : [],
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async excluirSimulado(simuladoId: string): Promise<boolean> {
+    try {
+      await ApiService.request(`/simulados/${simuladoId}`, {
+        method: 'DELETE',
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+};
