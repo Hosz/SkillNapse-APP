@@ -11,6 +11,7 @@ import {
   Sliders,
   ShieldCheck,
   TrendingUp,
+  LogOut,
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -25,6 +26,7 @@ interface ProfileModalProps {
   totalStudySecondsToday: number;
   questionsAnsweredToday?: number;
   onSave: (data: { userName: string; dailyGoalHours: number; dailyGoalQuestions: number; cargoAlvo?: string }) => void;
+  onLogout?: () => void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -39,6 +41,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   totalStudySecondsToday,
   questionsAnsweredToday = 0,
   onSave,
+  onLogout,
 }) => {
   const [name, setName] = useState(userName);
   const [cargo, setCargo] = useState(cargoAlvo);
@@ -107,9 +110,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const goalPresets = [1, 2, 3, 4, 5, 6, 8];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto pt-6 sm:pt-8 pb-12 sm:pb-8 animate-in fade-in duration-200">
       <div
-        className="w-full max-w-xl rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 sm:p-7 space-y-6 text-zinc-900 dark:text-zinc-100 my-8 transition-all"
+        className="w-full max-w-xl rounded-2xl sm:rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-4 sm:p-7 space-y-5 sm:space-y-6 text-zinc-900 dark:text-zinc-100 my-auto sm:my-8 transition-all"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -345,28 +348,45 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-between pt-3 border-t border-zinc-200 dark:border-zinc-800">
-            <span className="text-xs text-zinc-500">
-              {savedSuccess ? (
-                <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold">
-                  <Check className="w-3.5 h-3.5" /> Salvo com sucesso!
-                </span>
-              ) : (
-                'Alterações salvas localmente'
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center justify-between sm:justify-start gap-3">
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onLogout();
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/50 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Sair da conta e encerrar sessão"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Sair da Conta</span>
+                </button>
               )}
-            </span>
 
-            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500 hidden sm:inline">
+                {savedSuccess ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold">
+                    <Check className="w-3.5 h-3.5" /> Salvo com sucesso!
+                  </span>
+                ) : (
+                  'Metas salvas no seu perfil'
+                )}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-300 transition-colors"
+                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-300 transition-colors"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all flex items-center gap-1.5"
+                className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5"
               >
                 <Check className="w-3.5 h-3.5" />
                 Salvar Alterações

@@ -641,6 +641,215 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
     }
   };
 
+  const renderBlocoDetalhesConteudo = (bloco: BlocoCronograma, onClose?: () => void) => {
+    const meta = getTipoBlocoMeta(bloco.tipoBloco);
+    const Icon = meta.icon;
+
+    return (
+      <div className="space-y-5">
+        {/* Cabeçalho do Bloco */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-500 dark:text-zinc-400 uppercase">
+              <Clock className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+              <span>Detalhes da Execução</span>
+            </div>
+            <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mt-1 leading-snug break-words">
+              {bloco.titulo || bloco.topicoTitulo || bloco.materiaNome || 'Bloco Selecionado'}
+            </h2>
+            {(bloco.materiaNome || (bloco.titulo && bloco.topicoTitulo)) && (
+              <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mt-0.5 break-words">
+                {bloco.materiaNome}
+                {bloco.materiaNome && bloco.topicoTitulo && bloco.titulo ? ` • ${bloco.topicoTitulo}` : ''}
+                {!bloco.materiaNome && bloco.topicoTitulo && bloco.titulo ? bloco.topicoTitulo : ''}
+              </p>
+            )}
+          </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shrink-0 cursor-pointer"
+              title="Fechar Detalhes"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Card com Metadados do Horário e Modalidade */}
+        <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 space-y-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" /> Horário & Duração:
+            </span>
+            <span className="font-mono text-zinc-800 dark:text-zinc-200 font-semibold">
+              {bloco.horaInicio} às {bloco.horaFim}{' '}
+              <span className="text-zinc-400 font-normal">
+                ({calcularDuracaoMinutos(bloco.horaInicio, bloco.horaFim)} min)
+              </span>
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-500 dark:text-zinc-400">Modalidade:</span>
+            <span
+              className={`text-[10px] font-mono px-2 py-0.5 rounded-lg border font-semibold flex items-center gap-1 ${meta.color}`}
+            >
+              <Icon className="w-3 h-3" />
+              {meta.label}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-500 dark:text-zinc-400">Dia da Semana:</span>
+            <span className="font-mono text-zinc-700 dark:text-zinc-300 font-semibold">
+              {days.find((d) => d.id === bloco.diaSemana)?.label || bloco.diaSemana}
+            </span>
+          </div>
+        </div>
+
+        {/* Ações de Execução Imediata de Estudo */}
+        <div className="space-y-2.5 pt-1">
+          <div className="text-[11px] font-mono font-semibold uppercase text-zinc-400">
+            Ação Imediata
+          </div>
+
+          {bloco.tipoBloco === 'FOCO_TEORIA' && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  onStartStudyTopic?.(bloco.materiaId, bloco.topicoId);
+                }}
+                className="w-full py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>Iniciar Estudo (Abrir Pomodoro & Caderno)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  onStartSimulado?.({
+                    planoId: plano?.id,
+                    materiaId: bloco.materiaId,
+                    topicoId: bloco.topicoId,
+                  });
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Praticar Questões deste Tópico</span>
+              </button>
+            </>
+          )}
+
+          {bloco.tipoBloco === 'REVISAO' && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  onStartFlashcards?.({
+                    planoId: plano?.id,
+                    materiaId: bloco.materiaId,
+                    topicoId: bloco.topicoId,
+                    materiaNome: bloco.materiaNome,
+                    topicoNome: bloco.topicoTitulo,
+                  });
+                }}
+                className="w-full py-3 px-4 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <RotateCw className="w-4 h-4" />
+                <span>Revisar com Flashcards (SM-2)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  onStartStudyTopic?.(bloco.materiaId, bloco.topicoId);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-amber-500" />
+                <span>Consultar Caderno de Estudos</span>
+              </button>
+            </>
+          )}
+
+          {bloco.tipoBloco === 'SIMULADO' && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  onStartSimulado?.({
+                    planoId: plano?.id,
+                    materiaId: bloco.materiaId,
+                    topicoId: bloco.topicoId,
+                  });
+                }}
+                className="w-full py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Target className="w-4 h-4" />
+                <span>Iniciar Simulado Deste Bloco</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  onStartStudyTopic?.(bloco.materiaId, bloco.topicoId);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Ver Tópico na Árvore de Conhecimento</span>
+              </button>
+            </>
+          )}
+
+          {bloco.tipoBloco === 'DESCANSO' && (
+            <div className="p-4 rounded-2xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 text-teal-900 dark:text-teal-200 space-y-1.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-teal-700 dark:text-teal-300">
+                <Coffee className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                <span>Descanso Sináptico Ativo</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-teal-700 dark:text-teal-300/90">
+                A consolidação neural da memória de longo prazo ocorre nos intervalos. Hidrate-se, faça uma pausa da tela e descanse a mente.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Botões de Ação do Bloco (Editar / Excluir) */}
+        <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800/80 space-y-2">
+          <button
+            type="button"
+            onClick={() => {
+              onClose?.();
+              handleOpenEditModal(bloco);
+            }}
+            className="w-full py-2.5 rounded-xl bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
+          >
+            <Edit2 className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Editar Planejamento deste Bloco</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose?.();
+              handleDeleteBloco(bloco.id);
+            }}
+            className="w-full py-2.5 rounded-xl bg-zinc-50 hover:bg-rose-50 dark:bg-zinc-900 dark:hover:bg-rose-500/10 text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 border border-zinc-200 hover:border-rose-300 dark:border-zinc-800 dark:hover:border-rose-500/30 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Remover este Bloco do Cronograma</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex-1 h-full flex flex-col bg-slate-50 dark:bg-zinc-950 overflow-hidden font-sans select-none text-zinc-900 dark:text-zinc-100">
       {/* Toast Notification */}
@@ -709,13 +918,13 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           {/* Center Left: Weekly Calendar / Timeblocking View */}
           <div className="flex-1 flex flex-col h-full border-r border-zinc-200 dark:border-zinc-800 overflow-hidden">
         {/* Header */}
-        <div className="p-5 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 space-y-4 shrink-0 shadow-2xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="p-3.5 sm:p-5 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 space-y-3 sm:space-y-4 shrink-0 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
             <div>
               <div className="text-xs font-mono text-zinc-500 dark:text-zinc-400 mb-0.5 font-medium">
                 Cronograma Híbrido & Timeblocking
               </div>
-              <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
+              <h1 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
                 Planejamento Semanal
               </h1>
             </div>
@@ -728,11 +937,11 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                   setAiErrorMessage(null);
                   setIsAiModalOpen(true);
                 }}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                className="flex-1 sm:flex-none px-3 sm:px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer"
                 title="Criar ou recalibrar seu cronograma semanal automaticamente com inteligência pedagógica"
               >
                 <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span>Gerar Cronograma IA</span>
+                <span>Gerar com IA</span>
               </button>
 
               <button
@@ -741,7 +950,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                   setNovoDia(selectedDay);
                   handleOpenAddModal();
                 }}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                className="flex-1 sm:flex-none px-3 sm:px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Adicionar Bloco</span>
@@ -750,7 +959,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           </div>
 
           {/* Days Tabs */}
-          <div className="flex overflow-x-auto gap-1.5 pb-1">
+          <div className="flex overflow-x-auto gap-1 sm:gap-1.5 pb-1 no-scrollbar">
             {days.map((d) => {
               const isSelected = selectedDay === d.id;
               const countNoDia = cronograma.filter((b) => b.diaSemana === d.id).length;
@@ -760,13 +969,14 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
                   key={d.id}
                   type="button"
                   onClick={() => handleSelectDay(d.id)}
-                  className={`px-3.5 py-2 rounded-xl text-xs whitespace-nowrap transition-all border flex items-center gap-2 cursor-pointer ${
+                  className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs whitespace-nowrap transition-all border flex items-center gap-1.5 sm:gap-2 cursor-pointer ${
                     isSelected
                       ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/25 font-bold ring-2 ring-indigo-500/25'
                       : 'bg-white dark:bg-zinc-900/60 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 font-medium'
                   }`}
                 >
-                  <span className="font-semibold">{d.label}</span>
+                  <span className="font-semibold sm:hidden">{d.short}</span>
+                  <span className="font-semibold hidden sm:inline">{d.label}</span>
                   {countNoDia > 0 ? (
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
@@ -793,7 +1003,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
         </div>
 
         {/* Schedule Blocks for Selected Day */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-2.5 sm:space-y-3">
           {loadingGrade ? (
             <div className="p-12 text-center text-zinc-500 flex flex-col items-center justify-center space-y-2">
               <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
@@ -912,186 +1122,10 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
         </div>
       </div>
 
-      {/* Right Drawer: Contextual Detail and Execution of Selected Block */}
-      <div className="w-full md:w-[400px] bg-white dark:bg-zinc-950 p-5 flex flex-col justify-between shrink-0 border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto">
+      {/* Desktop Persistent Drawer */}
+      <div className="hidden md:flex w-[400px] bg-white dark:bg-zinc-950 p-5 flex-col justify-between shrink-0 border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto">
         {selectedBloco ? (
-          <div className="space-y-5">
-            {/* Cabeçalho do Bloco */}
-            <div>
-              <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-500 dark:text-zinc-400 uppercase">
-                <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Detalhes da Execução</span>
-              </div>
-              <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mt-1 leading-snug">
-                {selectedBloco.titulo || selectedBloco.topicoTitulo || selectedBloco.materiaNome || 'Bloco Selecionado'}
-              </h2>
-              {(selectedBloco.materiaNome || (selectedBloco.titulo && selectedBloco.topicoTitulo)) && (
-                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mt-0.5">
-                  {selectedBloco.materiaNome}
-                  {selectedBloco.materiaNome && selectedBloco.topicoTitulo && selectedBloco.titulo ? ` • ${selectedBloco.topicoTitulo}` : ''}
-                  {!selectedBloco.materiaNome && selectedBloco.topicoTitulo && selectedBloco.titulo ? selectedBloco.topicoTitulo : ''}
-                </p>
-              )}
-            </div>
-
-            {/* Card com Metadados do Horário e Modalidade */}
-            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" /> Horário & Duração:
-                </span>
-                <span className="font-mono text-zinc-800 dark:text-zinc-200 font-semibold">
-                  {selectedBloco.horaInicio} às {selectedBloco.horaFim}{' '}
-                  <span className="text-zinc-400 font-normal">
-                    ({calcularDuracaoMinutos(selectedBloco.horaInicio, selectedBloco.horaFim)} min)
-                  </span>
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500 dark:text-zinc-400">Modalidade:</span>
-                {(() => {
-                  const meta = getTipoBlocoMeta(selectedBloco.tipoBloco);
-                  const Icon = meta.icon;
-                  return (
-                    <span
-                      className={`text-[10px] font-mono px-2 py-0.5 rounded-lg border font-semibold flex items-center gap-1 ${meta.color}`}
-                    >
-                      <Icon className="w-3 h-3" />
-                      {meta.label}
-                    </span>
-                  );
-                })()}
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500 dark:text-zinc-400">Dia da Semana:</span>
-                <span className="font-mono text-zinc-700 dark:text-zinc-300 font-semibold">
-                  {days.find((d) => d.id === selectedBloco.diaSemana)?.label || selectedBloco.diaSemana}
-                </span>
-              </div>
-            </div>
-
-            {/* Ações de Execução Imediata de Estudo */}
-            <div className="space-y-2.5 pt-1">
-              <div className="text-[11px] font-mono font-semibold uppercase text-zinc-400">
-                Ação Imediata
-              </div>
-
-              {selectedBloco.tipoBloco === 'FOCO_TEORIA' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => onStartStudyTopic?.(selectedBloco.materiaId, selectedBloco.topicoId)}
-                    className="w-full py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <Play className="w-4 h-4 fill-current" />
-                    <span>Iniciar Estudo (Abrir Pomodoro & Caderno)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onStartSimulado?.({
-                        planoId: plano?.id,
-                        materiaId: selectedBloco.materiaId,
-                        topicoId: selectedBloco.topicoId,
-                      })
-                    }
-                    className="w-full py-2.5 px-3 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>Praticar Questões deste Tópico</span>
-                  </button>
-                </>
-              )}
-
-              {selectedBloco.tipoBloco === 'REVISAO' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onStartFlashcards?.({
-                        planoId: plano?.id,
-                        materiaId: selectedBloco.materiaId,
-                        topicoId: selectedBloco.topicoId,
-                        materiaNome: selectedBloco.materiaNome,
-                        topicoNome: selectedBloco.topicoTitulo,
-                      })
-                    }
-                    className="w-full py-3 px-4 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <RotateCw className="w-4 h-4" />
-                    <span>Revisar com Flashcards (SM-2)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onStartStudyTopic?.(selectedBloco.materiaId, selectedBloco.topicoId)}
-                    className="w-full py-2.5 px-3 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <BookOpen className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Consultar Caderno de Estudos</span>
-                  </button>
-                </>
-              )}
-
-              {selectedBloco.tipoBloco === 'SIMULADO' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onStartSimulado?.({
-                        planoId: plano?.id,
-                        materiaId: selectedBloco.materiaId,
-                        topicoId: selectedBloco.topicoId,
-                      })
-                    }
-                    className="w-full py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <Target className="w-4 h-4" />
-                    <span>Iniciar Simulado Deste Bloco</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onStartStudyTopic?.(selectedBloco.materiaId, selectedBloco.topicoId)}
-                    className="w-full py-2.5 px-3 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Ver Tópico na Árvore de Conhecimento</span>
-                  </button>
-                </>
-              )}
-
-              {selectedBloco.tipoBloco === 'DESCANSO' && (
-                <div className="p-4 rounded-2xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 text-teal-900 dark:text-teal-200 space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-teal-700 dark:text-teal-300">
-                    <Coffee className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                    <span>Descanso Sináptico Ativo</span>
-                  </div>
-                  <p className="text-[11px] leading-relaxed text-teal-700 dark:text-teal-300/90">
-                    A consolidação neural da memória de longo prazo ocorre nos intervalos. Hidrate-se, faça uma pausa da tela e descanse a mente.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Botões de Ação do Bloco (Editar / Excluir) */}
-            <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800/80 space-y-2">
-              <button
-                type="button"
-                onClick={() => handleOpenEditModal(selectedBloco)}
-                className="w-full py-2.5 rounded-xl bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
-              >
-                <Edit2 className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Editar Planejamento deste Bloco</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDeleteBloco(selectedBloco.id)}
-                className="w-full py-2.5 rounded-xl bg-zinc-50 hover:bg-rose-50 dark:bg-zinc-900 dark:hover:bg-rose-500/10 text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 border border-zinc-200 hover:border-rose-300 dark:border-zinc-800 dark:hover:border-rose-500/30 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Remover este Bloco do Cronograma</span>
-              </button>
-            </div>
-          </div>
+          renderBlocoDetalhesConteudo(selectedBloco, () => setSelectedBloco(null))
         ) : (
           <div className="text-center text-xs text-zinc-500 my-auto py-12 space-y-2">
             <CalendarIcon className="w-8 h-8 opacity-30 mx-auto" />
@@ -1099,6 +1133,20 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Mobile Bottom Sheet Drawer (ativo apenas quando um bloco estiver selecionado) */}
+      {selectedBloco && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden animate-in fade-in duration-200"
+            onClick={() => setSelectedBloco(null)}
+          />
+          <div className="fixed inset-x-0 bottom-0 z-50 md:hidden bg-white dark:bg-zinc-950 rounded-t-3xl border-t border-zinc-200 dark:border-zinc-800 shadow-2xl p-5 max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-250">
+            <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full mx-auto mb-3 shrink-0" />
+            {renderBlocoDetalhesConteudo(selectedBloco, () => setSelectedBloco(null))}
+          </div>
+        </>
+      )}
         </div>
       )}
 

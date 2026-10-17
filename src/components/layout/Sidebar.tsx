@@ -97,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const renderSidebarBody = (isMobile: boolean) => (
     <>
       {/* Brand Header */}
-      <div>
+      <div className="shrink-0">
         <div className="h-16 px-5 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-500/20">
@@ -142,8 +142,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
           </div>
         </div>
+      </div>
 
-        {/* Navigation Links */}
+      {/* Navigation Links */}
+      <div className="flex-1 overflow-y-auto min-h-0">
         <nav className="p-3 space-y-1">
           <div className="px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
             Navegação Principal
@@ -180,7 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Gamification & User Footer */}
-      <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 space-y-3 bg-zinc-50/70 dark:bg-zinc-950/70">
+      <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 space-y-3 bg-zinc-50/70 dark:bg-zinc-950/70 shrink-0">
         {/* Streak & Today Study Time Widget */}
         <div
           onClick={() => {
@@ -339,7 +341,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           />
 
           {/* Sliding Drawer */}
-          <aside className="relative w-72 max-w-[85vw] h-screen bg-white dark:bg-zinc-950 border-r-2 border-zinc-200 dark:border-zinc-800 flex flex-col justify-between select-none shrink-0 z-50 shadow-2xl transition-all animate-in slide-in-from-left duration-300">
+          <aside className="relative w-72 max-w-[85vw] h-full max-h-screen bg-white dark:bg-zinc-950 border-r-2 border-zinc-200 dark:border-zinc-800 flex flex-col justify-between select-none shrink-0 z-50 shadow-2xl transition-all animate-in slide-in-from-left duration-300 overflow-hidden">
             {renderSidebarBody(true)}
           </aside>
         </div>

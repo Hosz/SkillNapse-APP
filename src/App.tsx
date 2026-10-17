@@ -1236,6 +1236,7 @@ function AppContent() {
         totalStudySecondsToday={totalStudySecondsToday}
         questionsAnsweredToday={questionsAnsweredToday}
         onSave={handleSaveProfile}
+        onLogout={handleLogout}
       />
 
       {/* 4. Modal Unificado de Criação e Edição da Árvore de Conhecimento */}
