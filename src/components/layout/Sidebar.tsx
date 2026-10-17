@@ -14,6 +14,7 @@ import {
   Moon,
   Layers,
   Settings,
+  Target,
   X,
 } from 'lucide-react';
 import { useTheme } from '../../context/useTheme';
@@ -32,6 +33,8 @@ interface SidebarProps {
   onSelectView: (view: NavView) => void;
   streakCount: number;
   totalStudySecondsToday: number;
+  questionsAnsweredToday?: number;
+  dailyGoalQuestions?: number;
   userEmail?: string;
   userName?: string;
   dailyGoalHours?: number;
@@ -46,6 +49,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectView,
   streakCount,
   totalStudySecondsToday,
+  questionsAnsweredToday = 0,
+  dailyGoalQuestions = 15,
   userEmail = 'estudante@skillnapse.ai',
   userName,
   dailyGoalHours = 3,
@@ -55,6 +60,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
 }) => {
   const { theme, toggleTheme } = useTheme();
+  const isTimeGoalReached = dailyGoalHours <= 0 || totalStudySecondsToday >= dailyGoalHours * 3600;
+  const isQuestionsGoalReached = dailyGoalQuestions <= 0 || questionsAnsweredToday >= dailyGoalQuestions;
+  const isGoalReached = isTimeGoalReached && isQuestionsGoalReached;
 
   const navItems = [
     { id: 'tree' as NavView, label: 'Árvore de Estudo', icon: Network },
@@ -187,8 +195,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <Flame className="w-4 h-4 fill-amber-500/20 text-amber-500" />
               <span>{streakCount} dias seguidos</span>
             </div>
-            <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">
-              Ofensiva
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-all ${
+              isGoalReached
+                ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-500/20 border-emerald-300 dark:border-emerald-500/40 font-bold'
+                : isTimeGoalReached && !isQuestionsGoalReached
+                ? 'text-amber-700 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-500/20 border-amber-300 dark:border-amber-500/40 font-medium'
+                : !isTimeGoalReached && isQuestionsGoalReached
+                ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-100/80 dark:bg-indigo-500/20 border-indigo-300 dark:border-indigo-500/40 font-medium'
+                : 'text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700'
+            }`}>
+              {isGoalReached
+                ? 'Meta Batida! 🎉'
+                : isTimeGoalReached && !isQuestionsGoalReached
+                ? 'Faltam Questões'
+                : !isTimeGoalReached && isQuestionsGoalReached
+                ? 'Falta Tempo'
+                : 'Ofensiva'}
             </span>
           </div>
 
@@ -198,20 +220,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Clock className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
                 Líquidas hoje:
               </span>
-              <span className="font-mono text-zinc-800 dark:text-zinc-200 font-medium">
+              <span className={`font-mono font-medium ${isTimeGoalReached ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-zinc-800 dark:text-zinc-200'}`}>
                 {formatHoursMinutes(totalStudySecondsToday)} / {dailyGoalHours}h 00m
               </span>
             </div>
-            {/* Progress Bar */}
+            {/* Progress Bar Horas */}
             <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 rounded-full transition-all duration-500"
+                className={`h-full rounded-full transition-all duration-500 ${
+                  isTimeGoalReached
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-sm shadow-emerald-500/30'
+                    : 'bg-gradient-to-r from-indigo-500 to-emerald-400'
+                }`}
                 style={{
                   width: `${Math.min(100, (totalStudySecondsToday / (dailyGoalHours * 3600)) * 100)}%`,
                 }}
               />
             </div>
           </div>
+
+          {dailyGoalQuestions > 0 && (
+            <div className="space-y-1 pt-1.5 border-t border-zinc-100 dark:border-zinc-800/80">
+              <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+                <span className="flex items-center gap-1">
+                  <Target className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+                  Questões hoje:
+                </span>
+                <span className={`font-mono font-medium ${isQuestionsGoalReached ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-zinc-800 dark:text-zinc-200'}`}>
+                  {questionsAnsweredToday} / {dailyGoalQuestions}
+                </span>
+              </div>
+              {/* Progress Bar Questoes */}
+              <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    isQuestionsGoalReached
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-sm shadow-emerald-500/30'
+                      : 'bg-gradient-to-r from-indigo-500 to-amber-400'
+                  }`}
+                  style={{
+                    width: `${Math.min(100, (questionsAnsweredToday / dailyGoalQuestions) * 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* User Profile & Actions */}

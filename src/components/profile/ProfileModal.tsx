@@ -20,9 +20,11 @@ interface ProfileModalProps {
   userName: string;
   cargoAlvo?: string;
   dailyGoalHours: number;
+  dailyGoalQuestions?: number;
   streakCount: number;
   totalStudySecondsToday: number;
-  onSave: (data: { userName: string; dailyGoalHours: number; cargoAlvo?: string }) => void;
+  questionsAnsweredToday?: number;
+  onSave: (data: { userName: string; dailyGoalHours: number; dailyGoalQuestions: number; cargoAlvo?: string }) => void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -32,13 +34,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   userName,
   cargoAlvo = '',
   dailyGoalHours,
+  dailyGoalQuestions = 15,
   streakCount,
   totalStudySecondsToday,
+  questionsAnsweredToday = 0,
   onSave,
 }) => {
   const [name, setName] = useState(userName);
   const [cargo, setCargo] = useState(cargoAlvo);
   const [goalHours, setGoalHours] = useState(dailyGoalHours);
+  const [goalQuestions, setGoalQuestions] = useState(dailyGoalQuestions);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
@@ -46,9 +51,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       setName(userName);
       setCargo(cargoAlvo);
       setGoalHours(dailyGoalHours);
+      setGoalQuestions(dailyGoalQuestions);
       setSavedSuccess(false);
     }
-  }, [isOpen, userName, cargoAlvo, dailyGoalHours]);
+  }, [isOpen, userName, cargoAlvo, dailyGoalHours, dailyGoalQuestions]);
 
   // Handle escape key
   useEffect(() => {
@@ -69,6 +75,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       userName: name.trim(),
       cargoAlvo: cargo.trim(),
       dailyGoalHours: goalHours,
+      dailyGoalQuestions: goalQuestions,
     });
     setSavedSuccess(true);
     setTimeout(() => {
@@ -92,7 +99,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   const goalSeconds = goalHours * 3600;
-  const progressPercent = Math.min(100, Math.round((totalStudySecondsToday / goalSeconds) * 100));
+  const timePercent = Math.min(100, Math.round((totalStudySecondsToday / goalSeconds) * 100));
+  const questionsPercent = goalQuestions > 0 ? Math.min(100, Math.round((questionsAnsweredToday / goalQuestions) * 100)) : 100;
+  const overallPercent = goalQuestions > 0 ? Math.round((timePercent + questionsPercent) / 2) : timePercent;
+  const isGoalComplete = timePercent >= 100 && (goalQuestions <= 0 || questionsPercent >= 100);
 
   const goalPresets = [1, 2, 3, 4, 5, 6, 8];
 
@@ -110,11 +120,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold flex items-center gap-2">
-                <span>Perfil & Preferências de Estudo</span>
+                <span>Perfil & Metas de Ofensiva</span>
                 <Sparkles className="w-4 h-4 text-amber-500" />
               </h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Gerencie seus dados e calibre suas metas diárias de horas líquidas.
+                Calibre seus objetivos diários de horas líquidas e questões para conquistar sua ofensiva.
               </p>
             </div>
           </div>
@@ -128,7 +138,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
 
         {/* Stats Strip */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-1">
             <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
               <Flame className="w-3.5 h-3.5 text-amber-500" />
@@ -142,7 +152,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <div className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-1">
             <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
               <Clock className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Estudado Hoje</span>
+              <span>Horas Hoje</span>
             </div>
             <div className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100 font-mono">
               {formatHoursMinutes(totalStudySecondsToday)}
@@ -151,11 +161,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
           <div className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-1">
             <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+              <Target className="w-3.5 h-3.5 text-amber-500" />
+              <span>Questões</span>
+            </div>
+            <div className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100 font-mono">
+              {questionsAnsweredToday} / {goalQuestions > 0 ? goalQuestions : '∞'}
+            </div>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-1">
+            <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Progresso</span>
+              <span>{isGoalComplete ? 'Concluída' : 'Progresso'}</span>
             </div>
             <div className="text-sm sm:text-base font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-              {progressPercent}%
+              {isGoalComplete ? '100% 🎉' : `${overallPercent}%`}
             </div>
           </div>
         </div>
@@ -263,7 +283,63 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 className="w-full accent-indigo-600 cursor-pointer"
               />
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                Essa meta calibra a barra de progresso no menu lateral e baliza os alertas de rendimento diário.
+                Essa meta calibra a barra de horas no menu lateral e baliza os ciclos de foco do estudante.
+              </p>
+            </div>
+          </div>
+
+          {/* Meta Diária de Questões */}
+          <div className="space-y-3.5 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-mono">
+                <Target className="w-3.5 h-3.5 text-amber-500" />
+                Meta Diária de Questões
+              </h4>
+              <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                {goalQuestions > 0 ? `${goalQuestions} questões / dia` : 'Sem meta de questões (opcional)'}
+              </span>
+            </div>
+
+            {/* Presets */}
+            <div className="flex flex-wrap gap-2">
+              {[0, 5, 10, 15, 20, 25, 30, 50].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setGoalQuestions(preset)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                    goalQuestions === preset
+                      ? 'bg-amber-600 text-white shadow-xs font-semibold border border-amber-600'
+                      : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-transparent'
+                  }`}
+                >
+                  {preset === 0 ? '0 (desativada)' : `${preset} q.`}
+                </button>
+              ))}
+            </div>
+
+            {/* Range Slider Questoes */}
+            <div className="space-y-2 p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800/60">
+              <div className="flex justify-between text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">
+                <span>0 (desativada)</span>
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                  {goalQuestions > 0 ? `${goalQuestions} questões por dia` : 'Apenas horas líquidas computam ofensiva'}
+                </span>
+                <span>100 q.</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={goalQuestions}
+                onChange={(e) => setGoalQuestions(parseInt(e.target.value, 10) || 0)}
+                className="w-full accent-amber-600 cursor-pointer"
+              />
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                {goalQuestions > 0
+                  ? `Para computar e manter sua ofensiva, você precisará bater a meta de horas E resolver no mínimo ${goalQuestions} questões diariamente.`
+                  : 'Ao deixar em 0, sua ofensiva dependerá exclusivamente de bater as horas líquidas de estudo.'}
               </p>
             </div>
           </div>

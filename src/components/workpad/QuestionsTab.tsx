@@ -24,6 +24,7 @@ interface QuestionsTabProps {
     subtopicoId?: string;
   }) => void;
   onStartSimulado?: (simuladoId?: string) => void;
+  onQuestionAnswered?: () => void;
 }
 
 export const QuestionsTab: React.FC<QuestionsTabProps> = ({
@@ -32,6 +33,7 @@ export const QuestionsTab: React.FC<QuestionsTabProps> = ({
   planoId,
   onPraticarSimulado,
   onStartSimulado,
+  onQuestionAnswered,
 }) => {
   const [questions, setQuestions] = useState<Questao[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,11 +61,19 @@ export const QuestionsTab: React.FC<QuestionsTabProps> = ({
     setShowExplanation((prev) => ({ ...prev, [questionId]: true }));
 
     // Send answer to backend API
-    questaoService.responderQuestao(questionId, {
-      alternativaEscolhidaId: optionId,
-      tempoGastoSegundos: 25,
-      topicoId: topic.id,
-    });
+    questaoService
+      .responderQuestao(questionId, {
+        alternativaEscolhidaId: optionId,
+        tempoGastoSegundos: 25,
+        topicoId: topic.id,
+      })
+      .then(() => {
+        onQuestionAnswered?.();
+      })
+      .catch((err) => {
+        console.error('Erro ao submeter resposta da questão:', err);
+        onQuestionAnswered?.();
+      });
   };
 
   const handleToggleExplanation = (questionId: string) => {

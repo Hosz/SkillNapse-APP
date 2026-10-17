@@ -76,6 +76,21 @@ function AppContent() {
     return 3;
   });
 
+  const [dailyGoalQuestions, setDailyGoalQuestions] = useState<number>(() => {
+    try {
+      const goal = localStorage.getItem('skillnapse_daily_goal_questions');
+      if (goal) {
+        const parsed = parseInt(goal, 10);
+        if (!isNaN(parsed) && parsed >= 0) return parsed;
+      }
+    } catch {
+      // Ignora erro
+    }
+    return 15;
+  });
+
+  const [questionsAnsweredToday, setQuestionsAnsweredToday] = useState<number>(0);
+
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
@@ -189,6 +204,31 @@ function AppContent() {
         setTotalStudySecondsToday(resumo.totalSegundosEstudados);
       }
     });
+
+    gamificacaoService.obterProgressoMetas().then((progresso) => {
+      if (progresso) {
+        if (progresso.questoesResolvidasHoje !== undefined) {
+          setQuestionsAnsweredToday(progresso.questoesResolvidasHoje);
+        }
+        if (progresso.metaQuestoesResolvidas !== undefined) {
+          setDailyGoalQuestions(progresso.metaQuestoesResolvidas);
+          try {
+            localStorage.setItem('skillnapse_daily_goal_questions', progresso.metaQuestoesResolvidas.toString());
+          } catch {
+            // Ignora erro
+          }
+        }
+        if (progresso.minutosMetaDiaria !== undefined && progresso.minutosMetaDiaria > 0) {
+          const hours = progresso.minutosMetaDiaria / 60;
+          setDailyGoalHours(hours);
+          try {
+            localStorage.setItem('skillnapse_daily_goal', hours.toString());
+          } catch {
+            // Ignora erro
+          }
+        }
+      }
+    });
   };
 
   // Checagem ativa na inicialização / reinicialização da aplicação
@@ -280,9 +320,17 @@ function AppContent() {
     carregarDadosIniciais();
   };
 
-  const handleSaveProfile = (data: { userName: string; dailyGoalHours: number; cargoAlvo?: string }) => {
+  const handleSaveProfile = (data: {
+    userName: string;
+    dailyGoalHours: number;
+    dailyGoalQuestions?: number;
+    cargoAlvo?: string;
+  }) => {
     setUserName(data.userName);
     setDailyGoalHours(data.dailyGoalHours);
+    if (data.dailyGoalQuestions !== undefined) {
+      setDailyGoalQuestions(data.dailyGoalQuestions);
+    }
     if (data.cargoAlvo !== undefined) {
       setCargoAlvo(data.cargoAlvo);
     }
@@ -297,6 +345,17 @@ function AppContent() {
       };
       localStorage.setItem('skillnapse_user', JSON.stringify(updatedUser));
       localStorage.setItem('skillnapse_daily_goal', data.dailyGoalHours.toString());
+      if (data.dailyGoalQuestions !== undefined) {
+        localStorage.setItem('skillnapse_daily_goal_questions', data.dailyGoalQuestions.toString());
+      }
+      gamificacaoService
+        .atualizarMetas(
+          data.dailyGoalHours * 60,
+          data.dailyGoalQuestions !== undefined ? data.dailyGoalQuestions : dailyGoalQuestions
+        )
+        .then(() => {
+          carregarDadosIniciais();
+        });
     } catch (e) {
       console.error('Erro ao salvar preferências do usuário:', e);
     }
@@ -996,6 +1055,8 @@ function AppContent() {
         }}
         streakCount={streakCount}
         totalStudySecondsToday={totalStudySecondsToday}
+        questionsAnsweredToday={questionsAnsweredToday}
+        dailyGoalQuestions={dailyGoalQuestions}
         userEmail={userEmail}
         userName={userName}
         dailyGoalHours={dailyGoalHours}
@@ -1071,6 +1132,7 @@ function AppContent() {
                 streakCount={streakCount}
                 onClose={handleClearSelection}
                 onSessionComplete={handleSessionComplete}
+                onQuestionAnswered={carregarDadosIniciais}
                 onPraticarSimulado={handlePraticarSimulado}
                 onStartSimulado={handleNavigateToSimuladoFromAnalytics}
               />
@@ -1169,8 +1231,10 @@ function AppContent() {
         userName={userName}
         cargoAlvo={cargoAlvo}
         dailyGoalHours={dailyGoalHours}
+        dailyGoalQuestions={dailyGoalQuestions}
         streakCount={streakCount}
         totalStudySecondsToday={totalStudySecondsToday}
+        questionsAnsweredToday={questionsAnsweredToday}
         onSave={handleSaveProfile}
       />
 

@@ -15,6 +15,12 @@ export interface MetasProgressoResponse {
   minutosMetaDiaria: number;
   minutosEstudadosHoje: number;
   percentualConcluido: number;
+  metaMinutosAtingida?: boolean;
+  metaQuestoesResolvidas: number;
+  questoesResolvidasHoje: number;
+  percentualQuestoes: number;
+  metaQuestoesAtingida?: boolean;
+  todasMetasAtingidas?: boolean;
 }
 
 export const gamificacaoService = {
@@ -49,12 +55,24 @@ export const gamificacaoService = {
         minutosMetaDiaria: res?.metaMinutosEstudo ?? res?.minutosMetaDiaria ?? 180,
         minutosEstudadosHoje: res?.minutosEstudadosHoje ?? 0,
         percentualConcluido: res?.percentualMinutosEstudo ?? res?.percentualConcluido ?? 0,
+        metaMinutosAtingida: res?.metaMinutosAtingida ?? false,
+        metaQuestoesResolvidas: res?.metaQuestoesResolvidas ?? 15,
+        questoesResolvidasHoje: res?.questoesResolvidasHoje ?? 0,
+        percentualQuestoes: res?.percentualQuestoes ?? 0,
+        metaQuestoesAtingida: res?.metaQuestoesAtingida ?? false,
+        todasMetasAtingidas: res?.todasMetasAtingidas ?? false,
       };
     } catch {
       return {
-        minutosMetaDiaria: 180, // Meta diária de 3h padrão
+        minutosMetaDiaria: 180,
         minutosEstudadosHoje: 0,
         percentualConcluido: 0,
+        metaMinutosAtingida: false,
+        metaQuestoesResolvidas: 15,
+        questoesResolvidasHoje: 0,
+        percentualQuestoes: 0,
+        metaQuestoesAtingida: false,
+        todasMetasAtingidas: false,
       };
     }
   },
@@ -67,6 +85,21 @@ export const gamificacaoService = {
       return true;
     } catch {
       return true;
+    }
+  },
+
+  async atualizarMetas(metaMinutosEstudo: number, metaQuestoesResolvidas: number = 0): Promise<boolean> {
+    try {
+      await ApiService.request('/gamificacao/metas', {
+        method: 'PUT',
+        body: JSON.stringify({
+          metaMinutosEstudo,
+          metaQuestoesResolvidas,
+        }),
+      });
+      return true;
+    } catch {
+      return false;
     }
   },
 };

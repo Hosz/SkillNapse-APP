@@ -35,6 +35,7 @@ interface WorkpadProps {
     subtopicoId?: string;
   }) => void;
   onStartSimulado?: (simuladoId?: string) => void;
+  onQuestionAnswered?: () => void;
 }
 
 export const Workpad: React.FC<WorkpadProps> = ({
@@ -49,6 +50,7 @@ export const Workpad: React.FC<WorkpadProps> = ({
   onSessionComplete,
   onPraticarSimulado,
   onStartSimulado,
+  onQuestionAnswered,
 }) => {
   // State: which ticket is currently pulled/open (null means collapsed)
   const [internalActiveTicket, setInternalActiveTicket] = useState<TicketType | null>(initialTab ?? null);
@@ -130,6 +132,7 @@ export const Workpad: React.FC<WorkpadProps> = ({
           planoId={planoId}
           onPraticarSimulado={onPraticarSimulado}
           onStartSimulado={onStartSimulado}
+          onQuestionAnswered={onQuestionAnswered}
         />
       )}
       {activeTicket === 'flashcards' && (

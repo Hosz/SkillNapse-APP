@@ -47,7 +47,8 @@ export const sessaoService = {
 
   async obterResumoHoje(): Promise<ResumoSessoesResponse> {
     try {
-      const res = await ApiService.request<any>('/sessoes-estudo/resumo');
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const res = await ApiService.request<any>(`/sessoes-estudo/resumo/hoje?timezone=${encodeURIComponent(timezone)}`);
       const segundos = res?.totalSegundosLiquidos ?? res?.totalSegundosEstudados ?? 0;
       return {
         totalSegundosEstudados: segundos,
@@ -56,12 +57,27 @@ export const sessaoService = {
         totalSessoesConcluidas: res?.totalSessoesConcluidas ?? 0,
       };
     } catch {
-      return {
-        totalSegundosEstudados: 0,
-        totalSegundosLiquidos: 0,
-        totalHorasLiquidas: 0,
-        totalSessoesConcluidas: 0,
-      };
+      try {
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+        const res = await ApiService.request<any>(`/sessoes-estudo/resumo?de=${start.toISOString()}&ate=${end.toISOString()}`);
+        const segundos = res?.totalSegundosLiquidos ?? res?.totalSegundosEstudados ?? 0;
+        return {
+          totalSegundosEstudados: segundos,
+          totalSegundosLiquidos: segundos,
+          totalHorasLiquidas: res?.totalHorasLiquidas ?? (segundos / 3600),
+          totalSessoesConcluidas: res?.totalSessoesConcluidas ?? 0,
+        };
+      } catch {
+        return {
+          totalSegundosEstudados: 0,
+          totalSegundosLiquidos: 0,
+          totalHorasLiquidas: 0,
+          totalSessoesConcluidas: 0,
+        };
+      }
     }
   },
 };
