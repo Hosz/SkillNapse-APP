@@ -79,17 +79,27 @@ export const simuladoService = {
 
     const validTopicoIds = (payload.topicoIds || []).filter((id) => isUUID(id));
 
-    return await ApiService.request<SimuladoDetalhe>('/simulados/adaptativo/gerar', {
+    const res = await ApiService.request<SimuladoDetalhe>('/simulados/adaptativo/gerar', {
       method: 'POST',
       signal,
       body: JSON.stringify({
         planoEstudoId: payload.planoEstudoId,
-        quantidadeQuestoes: Math.max(3, Math.min(15, payload.quantidadeQuestoes || 10)),
+        quantidadeQuestoes: Math.max(3, Math.min(90, payload.quantidadeQuestoes || 10)),
         bancaAlvo: payload.bancaAlvo || 'CESPE / Cebraspe',
         topicoIds: validTopicoIds.length > 0 ? validTopicoIds : undefined,
         ...(payload.titulo ? { titulo: payload.titulo.trim() } : {}),
       }),
     });
+
+    if (res && res.simuladoId) {
+      try {
+        localStorage.setItem(`skillnapse_simulado_${res.simuladoId}`, JSON.stringify(res));
+      } catch {
+        // Silencia erro de quota de storage se houver
+      }
+    }
+
+    return res;
   },
 
   async responderQuestao(

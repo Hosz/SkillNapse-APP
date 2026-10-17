@@ -17,7 +17,10 @@ export interface RespostaQuestaoResponse {
 export const questaoService = {
   async listarPorTopico(topicoId: string): Promise<Questao[]> {
     try {
-      const data = await ApiService.request<{ content: Questao[] }>(`/questoes?topicoId=${topicoId}`);
+      const data = await ApiService.request<Questao[] | { content: Questao[] }>(`/questoes/topico/${topicoId}`);
+      if (Array.isArray(data)) {
+        return data;
+      }
       return data?.content || [];
     } catch {
       return [];

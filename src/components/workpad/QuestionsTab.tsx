@@ -94,6 +94,13 @@ export const QuestionsTab: React.FC<QuestionsTabProps> = ({
           bancaAlvo: 'CESPE / Cebraspe',
         });
 
+        // Atualiza a lista de questões do tópico em segundo plano
+        questaoService.listarPorTopico(topic.id).then((novasQuestoes) => {
+          if (novasQuestoes && novasQuestoes.length > 0) {
+            setQuestions(novasQuestoes);
+          }
+        });
+
         if (res?.simuladoId && onStartSimulado) {
           onStartSimulado(res.simuladoId);
           return;

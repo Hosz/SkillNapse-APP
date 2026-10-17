@@ -166,17 +166,21 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
   const [isCustomBanca, setIsCustomBanca] = useState(false);
   const [customBanca, setCustomBanca] = useState('');
 
-  // Max Questions rule (IA Adaptativa: entre 3 e 15 questões por geração):
-  // Edital Completo: 15 | Matéria Inteira: 15 | Tópico Inteiro: 10 | Subtópico: 5
+  // Limites calibrados por escopo de estudo:
+  // Plano de estudo inteiro: até 90 questões | Matérias específicas: até 50 questões | Tópicos/Subtópicos específicos: até 30 questões
   const maxQuestoes = !filterMateria
-    ? 15
+    ? 90
     : !filterTopico
-    ? 15
+    ? 50
     : !filterSubtopico
-    ? 10
-    : 5;
+    ? 30
+    : 30;
 
   const [qtdQuestoes, setQtdQuestoes] = useState<number>(10);
+
+  useEffect(() => {
+    setQtdQuestoes((prev) => Math.min(prev, maxQuestoes));
+  }, [maxQuestoes]);
   const [bancaAlvo, setBancaAlvo] = useState('CESPE / Cebraspe');
   const [generating, setGenerating] = useState(false);
 
@@ -549,7 +553,7 @@ export const SimuladoView: React.FC<SimuladoViewProps> = ({
 
       const topicosParaEnvio: string[] = targetTopicoId ? [targetTopicoId] : [];
       const bancaFinal = isCustomBanca && customBanca.trim() ? customBanca.trim() : bancaAlvo;
-      const qtdFinal = Math.max(3, Math.min(15, qtdQuestoes));
+      const qtdFinal = Math.max(3, Math.min(maxQuestoes, qtdQuestoes));
 
       let tituloDesejado: string | undefined = undefined;
       if (filterSubtopico && subtopicoSelecionado) {

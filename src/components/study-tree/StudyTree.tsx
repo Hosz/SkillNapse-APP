@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   Plus,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { PlanoEstudo, Materia, Topico } from '../../types';
 import { SubjectNode } from './SubjectNode';
+import { planoService } from '../../services';
 
 interface StudyTreeProps {
   plano: PlanoEstudo;
@@ -67,7 +68,36 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [isPlanMenuOpen, setIsPlanMenuOpen] = useState(false);
 
-  const materias = plano?.materias || [];
+  const [localMaterias, setLocalMaterias] = useState<Materia[]>(() => {
+    return [...(plano?.materias || [])].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  });
+  const [draggedMateriaId, setDraggedMateriaId] = useState<string | null>(null);
+  const [dragOverMateriaId, setDragOverMateriaId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalMaterias([...(plano?.materias || [])].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)));
+  }, [plano?.materias]);
+
+  const handleMateriaDrop = async (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const oldIndex = localMaterias.findIndex((m) => m.id === sourceId);
+    const newIndex = localMaterias.findIndex((m) => m.id === targetId);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const updated = [...localMaterias];
+    const [moved] = updated.splice(oldIndex, 1);
+    updated.splice(newIndex, 0, moved);
+
+    const reordered = updated.map((m, idx) => ({ ...m, ordem: idx }));
+    setLocalMaterias(reordered);
+
+    await planoService.reordenarMaterias(
+      plano.id,
+      reordered.map((m) => m.id)
+    );
+  };
+
+  const materias = localMaterias;
 
   // Filter topics and subjects based on query
   const filteredMaterias = materias.map((mat) => {
@@ -280,22 +310,60 @@ export const StudyTree: React.FC<StudyTreeProps> = ({
       {/* Hierarchical Knowledge Tree View */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3">
         {filteredMaterias.length > 0 ? (
-          filteredMaterias.map((materia) => (
-            <SubjectNode
+          filteredMaterias.map((materia, idx) => (
+            <div
               key={materia.id}
-              materia={materia}
-              selectedTopicId={selectedTopicId}
-              onSelectTopic={onSelectTopic}
-              onOpenWorkpad={onOpenWorkpad}
-              onAddTopic={onAddTopic}
-              onEditMateria={onEditMateria}
-              onDeleteMateria={onDeleteMateria}
-              onAddSubtopic={onAddSubtopic}
-              onEditTopic={onEditTopic}
-              onDeleteTopic={onDeleteTopic}
-              onPraticarSimulado={onPraticarSimulado}
-              onPraticarFlashcards={onPraticarFlashcards}
-            />
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('type', 'materia');
+                e.dataTransfer.setData('id', materia.id);
+                setDraggedMateriaId(materia.id);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (draggedMateriaId && draggedMateriaId !== materia.id) {
+                  setDragOverMateriaId(materia.id);
+                }
+              }}
+              onDragLeave={() => {
+                if (dragOverMateriaId === materia.id) {
+                  setDragOverMateriaId(null);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const type = e.dataTransfer.getData('type');
+                const sourceId = e.dataTransfer.getData('id') || draggedMateriaId;
+                setDraggedMateriaId(null);
+                setDragOverMateriaId(null);
+                if (type === 'materia' && sourceId) {
+                  handleMateriaDrop(sourceId, materia.id);
+                }
+              }}
+              onDragEnd={() => {
+                setDraggedMateriaId(null);
+                setDragOverMateriaId(null);
+              }}
+              className={`transition-all ${
+                dragOverMateriaId === materia.id ? 'ring-2 ring-indigo-500 rounded-2xl scale-[1.01]' : ''
+              } ${draggedMateriaId === materia.id ? 'opacity-50' : ''}`}
+            >
+              <SubjectNode
+                materia={materia}
+                materiaNumero={`${idx + 1}.`}
+                selectedTopicId={selectedTopicId}
+                onSelectTopic={onSelectTopic}
+                onOpenWorkpad={onOpenWorkpad}
+                onAddTopic={onAddTopic}
+                onEditMateria={onEditMateria}
+                onDeleteMateria={onDeleteMateria}
+                onAddSubtopic={onAddSubtopic}
+                onEditTopic={onEditTopic}
+                onDeleteTopic={onDeleteTopic}
+                onPraticarSimulado={onPraticarSimulado}
+                onPraticarFlashcards={onPraticarFlashcards}
+              />
+            </div>
           ))
         ) : (
           <div className="p-12 text-center text-zinc-500 flex flex-col items-center justify-center space-y-2">

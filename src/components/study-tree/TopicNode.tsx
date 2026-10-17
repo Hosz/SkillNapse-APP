@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronRight,
   ChevronDown,
@@ -13,11 +13,14 @@ import {
   Layers,
   Timer,
   FileSignature,
+  GripVertical,
 } from 'lucide-react';
 import type { Topico } from '../../types';
+import { planoService } from '../../services';
 
 interface TopicNodeProps {
   topic: Topico;
+  topicoNumero?: string;
   level?: number;
   parentTopicTitle?: string;
   selectedTopicId: string | null;
@@ -42,6 +45,7 @@ interface TopicNodeProps {
 
 export const TopicNode: React.FC<TopicNodeProps> = ({
   topic,
+  topicoNumero,
   level = 0,
   parentTopicTitle,
   selectedTopicId,
@@ -56,7 +60,38 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
   const [isExpanded, setIsExpanded] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const hasSubtopics = topic.subtopicos && topic.subtopicos.length > 0;
+  const [localSubtopicos, setLocalSubtopicos] = useState<Topico[]>(() => {
+    return [...(topic?.subtopicos || [])].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  });
+  const [draggedSubId, setDraggedSubId] = useState<string | null>(null);
+  const [dragOverSubId, setDragOverSubId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalSubtopicos([...(topic?.subtopicos || [])].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)));
+  }, [topic?.subtopicos]);
+
+  const handleSubtopicDrop = async (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const oldIndex = localSubtopicos.findIndex((t) => t.id === sourceId);
+    const newIndex = localSubtopicos.findIndex((t) => t.id === targetId);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const updated = [...localSubtopicos];
+    const [moved] = updated.splice(oldIndex, 1);
+    updated.splice(newIndex, 0, moved);
+
+    const reordered = updated.map((t, idx) => ({ ...t, ordem: idx }));
+    setLocalSubtopicos(reordered);
+
+    if (topic.materiaId) {
+      await planoService.reordenarTopicos(
+        topic.materiaId,
+        reordered.map((t) => t.id)
+      );
+    }
+  };
+
+  const hasSubtopics = localSubtopicos.length > 0;
   const isSelected = selectedTopicId === topic.id;
   const isSubtopic = level > 0;
 
@@ -85,6 +120,14 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
         onClick={() => onSelectTopic(topic)}
       >
         <div className="flex items-start sm:items-center gap-2 flex-1 min-w-0 pr-2">
+          {/* Reordering Grip Handle */}
+          <div
+            className="cursor-grab active:cursor-grabbing text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 shrink-0 mt-0.5 sm:mt-0"
+            title="Arraste para reorganizar tópico"
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </div>
+
           {/* Expand/Collapse Chevron for subtopics */}
           {hasSubtopics ? (
             <button
@@ -117,18 +160,25 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
 
           {/* Topic Title & Subline Info */}
           <div className="min-w-0 flex-1">
-            <span
-              className={`text-xs tracking-tight break-words block leading-snug ${
-                isSelected
-                  ? isSubtopic
-                    ? 'font-bold text-indigo-900 dark:text-indigo-200'
-                    : 'font-bold text-zinc-900 dark:text-zinc-100'
-                  : 'font-medium text-zinc-800 dark:text-zinc-200'
-              }`}
-              title={topic.titulo}
-            >
-              {topic.titulo}
-            </span>
+            <div className="flex items-start gap-1.5 min-w-0">
+              {topicoNumero && (
+                <span className="font-mono text-zinc-400 dark:text-zinc-500 font-semibold text-xs shrink-0 select-none">
+                  {topicoNumero}
+                </span>
+              )}
+              <span
+                className={`text-xs tracking-tight break-words block leading-snug ${
+                  isSelected
+                    ? isSubtopic
+                      ? 'font-bold text-indigo-900 dark:text-indigo-200'
+                      : 'font-bold text-zinc-900 dark:text-zinc-100'
+                    : 'font-medium text-zinc-800 dark:text-zinc-200'
+                }`}
+                title={topic.titulo}
+              >
+                {topic.titulo}
+              </span>
+            </div>
 
             {/* Mobile Subline: Badges compactos abaixo do título para liberar 100% da largura */}
             <div className="flex sm:hidden items-center gap-1.5 mt-1.5 flex-wrap">
@@ -351,21 +401,65 @@ export const TopicNode: React.FC<TopicNodeProps> = ({
       {/* Recursive Subtopics */}
       {hasSubtopics && isExpanded && (
         <div className="mt-1.5 space-y-1.5 border-l-[3px] border-indigo-500/60 ml-3 sm:ml-4 pl-2.5 sm:pl-3 py-0.5">
-          {topic.subtopicos!.map((sub) => (
-            <TopicNode
+          {localSubtopicos.map((sub, subIdx) => (
+            <div
               key={sub.id}
-              topic={sub}
-              level={level + 1}
-              parentTopicTitle={topic.titulo}
-              selectedTopicId={selectedTopicId}
-              onSelectTopic={onSelectTopic}
-              onOpenWorkpad={onOpenWorkpad}
-              onAddSubtopic={onAddSubtopic}
-              onEditTopic={onEditTopic}
-              onDeleteTopic={onDeleteTopic}
-              onPraticarSimulado={onPraticarSimulado}
-              onPraticarFlashcards={onPraticarFlashcards}
-            />
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation();
+                e.dataTransfer.setData('type', 'subtopic');
+                e.dataTransfer.setData('parentId', topic.id);
+                e.dataTransfer.setData('id', sub.id);
+                setDraggedSubId(sub.id);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (draggedSubId && draggedSubId !== sub.id) {
+                  setDragOverSubId(sub.id);
+                }
+              }}
+              onDragLeave={(e) => {
+                e.stopPropagation();
+                if (dragOverSubId === sub.id) {
+                  setDragOverSubId(null);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const type = e.dataTransfer.getData('type');
+                const parentId = e.dataTransfer.getData('parentId');
+                const sourceId = e.dataTransfer.getData('id') || draggedSubId;
+                setDraggedSubId(null);
+                setDragOverSubId(null);
+                if (type === 'subtopic' && parentId === topic.id && sourceId) {
+                  handleSubtopicDrop(sourceId, sub.id);
+                }
+              }}
+              onDragEnd={() => {
+                setDraggedSubId(null);
+                setDragOverSubId(null);
+              }}
+              className={`transition-all ${
+                dragOverSubId === sub.id ? 'ring-2 ring-indigo-500 rounded-xl scale-[1.01]' : ''
+              } ${draggedSubId === sub.id ? 'opacity-50' : ''}`}
+            >
+              <TopicNode
+                topic={sub}
+                level={level + 1}
+                topicoNumero={`${topicoNumero || ''}${subIdx + 1}.`}
+                parentTopicTitle={topic.titulo}
+                selectedTopicId={selectedTopicId}
+                onSelectTopic={onSelectTopic}
+                onOpenWorkpad={onOpenWorkpad}
+                onAddSubtopic={onAddSubtopic}
+                onEditTopic={onEditTopic}
+                onDeleteTopic={onDeleteTopic}
+                onPraticarSimulado={onPraticarSimulado}
+                onPraticarFlashcards={onPraticarFlashcards}
+              />
+            </div>
           ))}
         </div>
       )}

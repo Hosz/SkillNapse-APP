@@ -94,13 +94,25 @@ export const flashcardService = {
 
   async listarPorTopico(topicoId: string): Promise<Flashcard[]> {
     try {
+      const metas = getStoredMetadata();
+      const enrich = (list: Flashcard[]): Flashcard[] =>
+        list.map((c) => ({
+          ...c,
+          ...(metas[c.id] || {}),
+        }));
+
       const data = await ApiService.request<{ content?: Flashcard[] } | Flashcard[]>(
+        `/flashcards?topicoId=${topicoId}&size=200`
+      );
+      const list = Array.isArray(data) ? data : (data?.content || []);
+      if (list.length > 0) return enrich(list);
+
+      // Fallback para /flashcards/due
+      const dataDue = await ApiService.request<{ content?: Flashcard[] } | Flashcard[]>(
         `/flashcards/due?topicoId=${topicoId}`
       );
-      if (Array.isArray(data)) {
-        return data;
-      }
-      return data?.content || [];
+      const listDue = Array.isArray(dataDue) ? dataDue : (dataDue?.content || []);
+      return enrich(listDue);
     } catch {
       return [];
     }
@@ -114,6 +126,13 @@ export const flashcardService = {
           ...c,
           ...(metas[c.id] || {}),
         }));
+
+      // Busca todos os flashcards do usuário
+      const dataGeral = await ApiService.request<{ content?: Flashcard[] } | Flashcard[]>(
+        '/flashcards?size=200'
+      );
+      const listGeral = Array.isArray(dataGeral) ? dataGeral : (dataGeral?.content || []);
+      if (listGeral.length > 0) return enrich(listGeral);
 
       const baralhoId = await this.obterBaralhoPadrao();
       if (baralhoId) {

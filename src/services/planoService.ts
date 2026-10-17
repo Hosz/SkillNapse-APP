@@ -87,24 +87,29 @@ export const planoService = {
         );
         const matList = Array.isArray(matData) ? matData : (matData?.content || []);
 
-        const mapTopico = (t: any): Topico => ({
-          id: String(t.id),
-          materiaId: String(t.materiaId || ''),
-          titulo: t.titulo,
-          peso: t.pesoEdital ?? t.peso ?? 5,
-          proficiencia: t.nivelProficiencia ?? t.proficiencia ?? 'INICIANTE',
-          topicoPaiId: t.topicoPaiId ? String(t.topicoPaiId) : null,
-          ordem: t.ordem ?? 0,
-          concluido: t.concluido ?? false,
-          subtopicos: Array.isArray(t.subtopicos) ? t.subtopicos.map(mapTopico) : [],
-        });
+        const mapTopico = (t: any): Topico => {
+          const subs: Topico[] = Array.isArray(t.subtopicos) ? t.subtopicos.map(mapTopico) : [];
+          subs.sort((a: Topico, b: Topico) => (a.ordem ?? 0) - (b.ordem ?? 0));
+          return {
+            id: String(t.id),
+            materiaId: String(t.materiaId || ''),
+            titulo: t.titulo,
+            peso: t.pesoEdital ?? t.peso ?? 5,
+            proficiencia: t.nivelProficiencia ?? t.proficiencia ?? 'INICIANTE',
+            topicoPaiId: t.topicoPaiId ? String(t.topicoPaiId) : null,
+            ordem: t.ordem ?? 0,
+            concluido: t.concluido ?? false,
+            subtopicos: subs,
+          };
+        };
 
-        materias = await Promise.all(
+        const mappedMaterias = await Promise.all(
           matList.map(async (m: any) => {
             let topicos: Topico[] = [];
             try {
               const topicosData = await ApiService.request<any[]>(`/topicos/materia/${m.id}`);
               topicos = Array.isArray(topicosData) ? topicosData.map(mapTopico) : [];
+              topicos.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
             } catch {
               topicos = [];
             }
@@ -119,6 +124,8 @@ export const planoService = {
             };
           })
         );
+        mappedMaterias.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+        materias = mappedMaterias;
       } catch {
         materias = [];
       }
@@ -324,6 +331,30 @@ export const planoService = {
       return true;
     } catch {
       return true;
+    }
+  },
+
+  async reordenarMaterias(planoId: string, idsOrdenados: string[]): Promise<boolean> {
+    try {
+      await ApiService.request(`/materias/plano/${planoId}/reordenar`, {
+        method: 'PATCH',
+        body: JSON.stringify({ idsOrdenados }),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async reordenarTopicos(materiaId: string, idsOrdenados: string[]): Promise<boolean> {
+    try {
+      await ApiService.request(`/topicos/materia/${materiaId}/reordenar`, {
+        method: 'PATCH',
+        body: JSON.stringify({ idsOrdenados }),
+      });
+      return true;
+    } catch {
+      return false;
     }
   },
 };

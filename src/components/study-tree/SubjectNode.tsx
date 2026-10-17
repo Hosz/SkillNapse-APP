@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -10,12 +10,15 @@ import {
   GitBranch,
   Award,
   Layers,
+  GripVertical,
 } from 'lucide-react';
 import type { Materia, Topico } from '../../types';
 import { TopicNode } from './TopicNode';
+import { planoService } from '../../services';
 
 interface SubjectNodeProps {
   materia: Materia;
+  materiaNumero?: string;
   selectedTopicId: string | null;
   onSelectTopic: (topic: Topico, materia: Materia) => void;
   onOpenWorkpad?: (topic: Topico, materia: Materia, tab?: 'pomodoro' | 'canvas' | 'questoes' | 'flashcards') => void;
@@ -44,6 +47,7 @@ interface SubjectNodeProps {
 
 export const SubjectNode: React.FC<SubjectNodeProps> = ({
   materia,
+  materiaNumero,
   selectedTopicId,
   onSelectTopic,
   onOpenWorkpad,
@@ -59,7 +63,36 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
   const [isExpanded, setIsExpanded] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const topicos = materia?.topicos || [];
+  const [localTopicos, setLocalTopicos] = useState<Topico[]>(() => {
+    return [...(materia?.topicos || [])].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  });
+  const [draggedTopicId, setDraggedTopicId] = useState<string | null>(null);
+  const [dragOverTopicId, setDragOverTopicId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalTopicos([...(materia?.topicos || [])].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)));
+  }, [materia?.topicos]);
+
+  const handleTopicDrop = async (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const oldIndex = localTopicos.findIndex((t) => t.id === sourceId);
+    const newIndex = localTopicos.findIndex((t) => t.id === targetId);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const updated = [...localTopicos];
+    const [moved] = updated.splice(oldIndex, 1);
+    updated.splice(newIndex, 0, moved);
+
+    const reordered = updated.map((t, idx) => ({ ...t, ordem: idx }));
+    setLocalTopicos(reordered);
+
+    await planoService.reordenarTopicos(
+      materia.id,
+      reordered.map((t) => t.id)
+    );
+  };
+
+  const topicos = localTopicos;
 
   // Compute subtopics count
   const countSubtopics = (topicosList: Topico[]): number => {
@@ -93,7 +126,10 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
           }`}
           onClick={() => setIsExpanded(!isExpanded)}
         >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="cursor-grab active:cursor-grabbing text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 shrink-0" title="Arraste para reorganizar disciplina">
+            <GripVertical className="w-4 h-4" />
+          </div>
           <button
             type="button"
             className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-100 transition-colors"
@@ -113,9 +149,16 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-              <h3 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-tight break-words">
-                {materia.nome}
-              </h3>
+              <div className="flex items-center gap-1.5 min-w-0">
+                {materiaNumero && (
+                  <span className="font-mono text-zinc-400 dark:text-zinc-500 font-bold text-xs sm:text-sm shrink-0 select-none">
+                    {materiaNumero}
+                  </span>
+                )}
+                <h3 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-tight break-words">
+                  {materia.nome}
+                </h3>
+              </div>
               <div className="flex items-center gap-1.5 font-mono text-[9px] sm:text-[10px] flex-wrap">
                 <span className="text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-800/80 px-2 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700/60 font-medium">
                   {totalPrincipais} {totalPrincipais === 1 ? 'tópico' : 'tópicos'}
@@ -230,31 +273,75 @@ export const SubjectNode: React.FC<SubjectNodeProps> = ({
               className="pl-3.5 space-y-2.5 ml-2.5"
               style={{ borderLeft: `3.5px solid ${materia.corHex}` }}
             >
-              {topicos.map((topico) => (
-                <TopicNode
+              {topicos.map((topico, idx) => (
+                <div
                   key={topico.id}
-                  topic={topico}
-                  parentTopicTitle={topico.titulo}
-                  selectedTopicId={selectedTopicId}
-                  onSelectTopic={(t) => onSelectTopic(t, materia)}
-                  onOpenWorkpad={(t, tab) => onOpenWorkpad && onOpenWorkpad(t, materia, tab)}
-                  onAddSubtopic={(parentId) => onAddSubtopic && onAddSubtopic(parentId, materia.id)}
-                  onEditTopic={onEditTopic}
-                  onDeleteTopic={onDeleteTopic}
-                  onPraticarSimulado={(params) =>
-                    onPraticarSimulado &&
-                    onPraticarSimulado({ planoId: materia.planoId, ...params })
-                  }
-                  onPraticarFlashcards={(params) =>
-                    onPraticarFlashcards &&
-                    onPraticarFlashcards({
-                      planoId: materia.planoId,
-                      materiaId: materia.id,
-                      materiaNome: materia.nome,
-                      ...params,
-                    })
-                  }
-                />
+                  draggable
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    e.dataTransfer.setData('type', 'topic');
+                    e.dataTransfer.setData('materiaId', materia.id);
+                    e.dataTransfer.setData('id', topico.id);
+                    setDraggedTopicId(topico.id);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (draggedTopicId && draggedTopicId !== topico.id) {
+                      setDragOverTopicId(topico.id);
+                    }
+                  }}
+                  onDragLeave={(e) => {
+                    e.stopPropagation();
+                    if (dragOverTopicId === topico.id) {
+                      setDragOverTopicId(null);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const type = e.dataTransfer.getData('type');
+                    const matId = e.dataTransfer.getData('materiaId');
+                    const sourceId = e.dataTransfer.getData('id') || draggedTopicId;
+                    setDraggedTopicId(null);
+                    setDragOverTopicId(null);
+                    if (type === 'topic' && matId === materia.id && sourceId) {
+                      handleTopicDrop(sourceId, topico.id);
+                    }
+                  }}
+                  onDragEnd={() => {
+                    setDraggedTopicId(null);
+                    setDragOverTopicId(null);
+                  }}
+                  className={`transition-all ${
+                    dragOverTopicId === topico.id ? 'ring-2 ring-indigo-500 rounded-xl scale-[1.01]' : ''
+                  } ${draggedTopicId === topico.id ? 'opacity-50' : ''}`}
+                >
+                  <TopicNode
+                    topic={topico}
+                    topicoNumero={`${materiaNumero || ''}${idx + 1}.`}
+                    parentTopicTitle={topico.titulo}
+                    selectedTopicId={selectedTopicId}
+                    onSelectTopic={(t) => onSelectTopic(t, materia)}
+                    onOpenWorkpad={(t, tab) => onOpenWorkpad && onOpenWorkpad(t, materia, tab)}
+                    onAddSubtopic={(parentId) => onAddSubtopic && onAddSubtopic(parentId, materia.id)}
+                    onEditTopic={onEditTopic}
+                    onDeleteTopic={onDeleteTopic}
+                    onPraticarSimulado={(params) =>
+                      onPraticarSimulado &&
+                      onPraticarSimulado({ planoId: materia.planoId, ...params })
+                    }
+                    onPraticarFlashcards={(params) =>
+                      onPraticarFlashcards &&
+                      onPraticarFlashcards({
+                        planoId: materia.planoId,
+                        materiaId: materia.id,
+                        materiaNome: materia.nome,
+                        ...params,
+                      })
+                    }
+                  />
+                </div>
               ))}
             </div>
           ) : (
